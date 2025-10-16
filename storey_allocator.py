@@ -16,11 +16,19 @@ for p in {str(src_dir), str(base_dir), str(dep_dir)}:
 [print(path) for path in sys.path]  # if os.path.isdir(path)
 
 import allocation
+import models
 
-logging.basicConfig(level=logging.DEBUG,
-                    format="%(asctime)s [%(levelname)s] %(message)s",
-                    datefmt="%Y-%m-%d %H:%M:%S")
+models.setup_colored_logging(logging.DEBUG)
+
 logger = logging.getLogger(__name__)
+
+
+# logger.info("Hello colored world")
+#
+# logging.basicConfig(level=logging.DEBUG,
+#                     format="%(asctime)s [%(levelname)s] %(message)s",
+#                     datefmt="%Y-%m-%d %H:%M:%S")
+# logger = logging.getLogger(__name__)
 
 
 def main():
