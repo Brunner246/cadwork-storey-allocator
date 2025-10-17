@@ -14,3 +14,7 @@ class Guid:
     @property
     def value(self) -> str:
         return str(self._uuid)
+
+
+def create_guid() -> Guid:
+    return Guid(uuid.uuid4())

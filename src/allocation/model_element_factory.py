@@ -5,7 +5,7 @@ import geometry_controller as gc
 from compas.geometry import Point, Vector
 
 import models
-from models.model_element import ModelElement, IModelElement
+from models.model_element import ModelLeafElement, IModelElement
 from models.model_element_geometry import ModelElementGeometry
 
 
@@ -33,7 +33,14 @@ class ModelElementFactory:
             bbx_pts,
         )
 
-        return ModelElement(
+        # if is_wall := ac.is_wall(element_id):
+        #     return models.Wall(
+        #         models.Guid(ec.get_element_cadwork_guid(element_id)),
+        #         ac.get_name(element_id),
+        #         geometry,
+        #     )
+
+        return ModelLeafElement(
             models.Guid(ec.get_element_cadwork_guid(element_id)),
             ac.get_name(element_id),
             geometry,

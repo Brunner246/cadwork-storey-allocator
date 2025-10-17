@@ -1,7 +1,8 @@
 import dataclasses
+from typing import Iterable
 
-import cadwork
 import bim_controller
+import models
 
 
 @dataclasses.dataclass
@@ -9,6 +10,8 @@ class BuildingStorey:
     building_name: str
     storey_name: str
     elevation: float
+
+    # elements: Iterable[models.IModelElement] = dataclasses.field(default_factory=list)
 
     def __hash__(self) -> int:
         return hash((self.building_name, self.storey_name))

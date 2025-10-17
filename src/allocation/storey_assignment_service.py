@@ -1,16 +1,35 @@
 import logging
 from typing import Iterable
 
+import bim_controller as bc
 import element_controller as ec
 from bim_controller import set_building_and_storey
 from compas.geometry import Point
 
+import allocation
+import models
 from allocation.building_registry import BuildingRegistry
 from allocation.building_storey_boundary_creator import BuildingStoreyBoundaryCreator
 from allocation.model_element_factory import ModelElementFactory
 from models.building_storey_boundary import BuildingStoreyBoundary
 
 logger = logging.getLogger(__name__)
+
+
+def build_model_element_trees(element_ids: Iterable[int]) -> list[models.IModelElement]:
+    tree_builder = allocation.ModelElementTreeBuilder(element_ids)
+    return tree_builder.build()
+
+
+def map_model_element_trees_to_buildings(model_element_trees: list[models.IModelElement]) -> dict[
+    str, models.IModelElement]:
+    buildings_to_nodes: dict[str, models.IModelElement] = {}
+    for node in model_element_trees:
+        element_id: int = ec.get_element_from_cadwork_guid(node.guid.value)
+        building_name: str = bc.get_building(element_id) or "UnassignedBuilding"
+        buildings_to_nodes.setdefault(building_name, node)
+
+    return buildings_to_nodes
 
 
 class StoreyAssignmentService:
@@ -33,6 +52,10 @@ class StoreyAssignmentService:
         Assign each element in element_ids to a storey if its local bbox overlaps
         at least coverage_threshold fraction with a storey boundary.
         """
+
+        model_element_trees = build_model_element_trees(element_ids)
+        building_tree_nodes = map_model_element_trees_to_buildings(model_element_trees)
+
         for building_name, building in self._registry.items():
             logger.info(f"Processing building: {building_name}")
 
@@ -113,3 +136,13 @@ class StoreyAssignmentService:
         overlap_high = min(z_max, b_max)
         overlap = max(0.0, overlap_high - overlap_low)
         return overlap / (z_max - z_min)
+
+    @staticmethod
+    def _create_node_elements(element_ids: Iterable[int]) -> list[int]:
+        """Create ModelNodeElement instances from element ids."""
+        node_elements = []
+        for eid in element_ids:
+            me = ModelElementFactory.create(eid)
+            # if isinstance(me, models.ModelNodeElement):
+            #     node_elements.append(me)
+        return node_elements

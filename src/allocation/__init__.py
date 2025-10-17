@@ -3,6 +3,7 @@ from .building_storey_builder import Building, BuildingStorey, build_building_st
 from .model_element_factory import ModelElementFactory, create_model_element
 from .storey_assignment_service import StoreyAssignmentService
 from .building_storey_boundary_creator import BuildingStoreyBoundaryCreator
+from .model_tree_builder import ModelElementTreeBuilder
 
 __all__ = [
     "StoreyAssignmentService",
@@ -13,4 +14,5 @@ __all__ = [
     "ModelElementFactory",
     "create_model_element",
     "BuildingStoreyBoundaryCreator",
+    "ModelElementTreeBuilder",
 ]
