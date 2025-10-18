@@ -46,13 +46,14 @@ def main():
         registry.upsert(building)
 
         for b in boundaries:
-            logger.info(f"Boundary: {b.identifier}, Bottom Z: {b.bottom_frame.point.z}, Top Z: {b.top_frame.point.z}")
+            logger.info(f"Boundary: {id(b)}, Bottom Z: {b.bottom_frame.point.z}, Top Z: {b.top_frame.point.z}")
 
         logger.info(f"Building: {b_name}")
         for storey in building.storeys:
             logger.info(f"  Storey: {storey.storey_name}, Elevation: {storey.elevation}")
 
     [logger.info(f"Registered {key}") for key in registry.names()]
+
 
     element_ids = element_controller.get_all_identifiable_element_ids()
     storey_assigner = allocation.StoreyAssignmentService(registry, coverage_threshold=0.6)

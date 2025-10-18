@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.12"
 dependencies = [
-    "black>=25.9.0",
+    "colorama==0.4.6",
     "compas==2.14.1",
     "cwapi3d==32.299.0",
 ]

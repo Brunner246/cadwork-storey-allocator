@@ -1,19 +1,19 @@
 import logging
-from typing import Iterable
+from typing import Iterable, Optional
 
 import bim_controller as bc
 import element_controller as ec
 from bim_controller import set_building_and_storey
-from compas.geometry import Point
 
 import allocation
 import models
-from allocation.building_registry import BuildingRegistry
-from allocation.building_storey_boundary_creator import BuildingStoreyBoundaryCreator
-from allocation.model_element_factory import ModelElementFactory
-from models.building_storey_boundary import BuildingStoreyBoundary
+import visitors
 
 logger = logging.getLogger(__name__)
+
+
+def get_element_id_from_cadwork_guid(guid: str) -> int:
+    return ec.get_element_from_cadwork_guid(guid)
 
 
 def build_model_element_trees(element_ids: Iterable[int]) -> list[models.IModelElement]:
@@ -41,7 +41,7 @@ class StoreyAssignmentService:
       - Logs decisions
     """
 
-    def __init__(self, registry: BuildingRegistry, coverage_threshold: float = 0.60) -> None:
+    def __init__(self, registry: allocation.BuildingRegistry, coverage_threshold: float = 0.60) -> None:
         if not (0.0 <= coverage_threshold <= 1.0):
             raise ValueError("coverage_threshold must be in [0,1]")
         self._registry = registry
@@ -53,96 +53,48 @@ class StoreyAssignmentService:
         at least coverage_threshold fraction with a storey boundary.
         """
 
+        # visitor = visitors.VerticalCoverageAssignmentVisitor(self._coverage_threshold)
+        # result = building_element.accept(visitor, boundaries)
+
         model_element_trees = build_model_element_trees(element_ids)
-        building_tree_nodes = map_model_element_trees_to_buildings(model_element_trees)
+        building_tree_nodes: dict[str, models.IModelElement] = map_model_element_trees_to_buildings(model_element_trees)
 
         for building_name, building in self._registry.items():
             logger.info(f"Processing building: {building_name}")
 
             # Create storey boundaries (one per vertical span)
-            boundaries: list[BuildingStoreyBoundary] = BuildingStoreyBoundaryCreator.from_building(building)
+            boundaries: list[models.BuildingStoreyBoundary] = allocation.BuildingStoreyBoundaryCreator.from_building(
+                building)
             if not boundaries:
                 logger.warning(f"No boundaries for building {building_name}")
                 continue
 
-            # Pre-log boundaries
             for b in boundaries:
                 bz0, bz1 = b.z_range()
-                logger.debug(f"Boundary {b.identifier}: z_range=({bz0:.3f}, {bz1:.3f}), height={b.height():.3f}")
+                logger.debug(
+                    f"Boundary {b.storey.building_name} - {b.storey.storey_name}: z_range=({bz0:.3f}, {bz1:.3f}), height={b.height():.3f}")
+
+            building_element_nodes = building_tree_nodes.setdefault(building_name, None)
+            if not building_element_nodes:
+                logger.warning(f"No building elements for building {building_name}")
+                continue
 
             to_assign: dict[str, list[int]] = {}  # storey_name -> element ids
 
-            for eid in element_ids:
-                try:
-                    me = ModelElementFactory.create(eid)
-                except Exception as e:
-                    logger.exception(f"Failed to create model element for id={eid}: {e}")
-                    continue
+            for building_element in building_element_nodes.children:
+                visitor = visitors.VerticalCoverageAssignmentVisitor(self._coverage_threshold)
+                storey_name_coverage: Optional[models.StoreyCoverage] = building_element.accept(visitor, boundaries)
 
-                # Get bbox points (compas Points) from geometry (we stored them in the BoundingBox)
-                # We reconstruct from local bbox vertices again to avoid exposing internals
-                try:
-                    bbx_vertices = ec.get_bounding_box_vertices_local(eid, [eid])
-                    bbox_pts = [ModelElementFactory.to_point(v) for v in bbx_vertices]
-                except Exception as e:
-                    logger.exception(f"Failed to get bbox for id={eid}: {e}")
-                    continue
-
-                chosen_storey = None
-                chosen_coverage = 0.0
-
-                # Evaluate coverage for each boundary
-                for boundary in boundaries:
-                    covered = self._vertical_coverage(boundary, bbox_pts)
-                    logger.debug(
-                        f"Element {eid} vs {boundary.identifier}: coverage={covered:.3%}"
-                    )
-                    if covered > chosen_coverage:
-                        chosen_storey = boundary.identifier.split("_", 1)[-1]  # "<building>_<storey>"
-                        chosen_coverage = covered
-
-                if chosen_storey and chosen_coverage >= self._coverage_threshold:
-                    to_assign.setdefault(chosen_storey, []).append(eid)
-                    logger.info(
-                        f"Element {eid} assigned to {building_name}/{chosen_storey} "
-                        f"(coverage={chosen_coverage:.3%} thr={self._coverage_threshold:.3%})"
-                    )
-                else:
-                    logger.warning(
-                        f"Element {eid} not assigned in {building_name} "
-                        f"(best={chosen_coverage:.3%} thr={self._coverage_threshold:.3%})"
-                    )
+                elements = to_assign.setdefault(storey_name_coverage.storey_name, [])
+                elements.append(get_element_id_from_cadwork_guid(building_element.guid.value))
+                elements.extend((get_element_id_from_cadwork_guid(e.guid.value) for e in building_element.children))
 
             # Perform assignments batched per storey
-            for storey_name, eids in to_assign.items():
+            for storey_name, element_ids in to_assign.items():
                 try:
-                    logger.info(f"Setting {len(eids)} elements to {building_name}/{storey_name}")
-                    set_building_and_storey(eids, building_name, storey_name)
+                    logger.info(f"Setting {len(element_ids)} elements to {building_name}/{storey_name}")
+                    set_building_and_storey(element_ids, building_name, storey_name)
                 except Exception as e:
                     logger.exception(
-                        f"Failed assigning {len(eids)} elements to {building_name}/{storey_name}: {e}"
+                        f"Failed assigning {len(element_ids)} elements to {building_name}/{storey_name}: {e}"
                     )
-
-    @staticmethod
-    def _vertical_coverage(boundary: BuildingStoreyBoundary, bbox_points: Iterable[Point]) -> float:
-        """Return fraction of bbox height overlapped by boundary along Z."""
-        zs = [p.z for p in bbox_points]
-        z_min, z_max = min(zs), max(zs)
-        if z_max <= z_min:
-            return 0.0
-
-        b_min, b_max = boundary.z_range()
-        overlap_low = max(z_min, b_min)
-        overlap_high = min(z_max, b_max)
-        overlap = max(0.0, overlap_high - overlap_low)
-        return overlap / (z_max - z_min)
-
-    @staticmethod
-    def _create_node_elements(element_ids: Iterable[int]) -> list[int]:
-        """Create ModelNodeElement instances from element ids."""
-        node_elements = []
-        for eid in element_ids:
-            me = ModelElementFactory.create(eid)
-            # if isinstance(me, models.ModelNodeElement):
-            #     node_elements.append(me)
-        return node_elements

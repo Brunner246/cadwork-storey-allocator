@@ -1,8 +1,13 @@
 import abc
+import dataclasses
 from enum import Enum, auto
+from typing import TYPE_CHECKING, Optional
 
-from models.guid import Guid
-from models.model_element_geometry import IModelElementGeometry
+from .guid import Guid
+from .model_element_geometry import IModelElementGeometry
+
+if TYPE_CHECKING:
+    import visitors
 
 
 class ElementKind(Enum):
@@ -11,6 +16,13 @@ class ElementKind(Enum):
     ROOF = auto()
     CONTAINER = auto()
     LEAF = auto()
+
+
+@dataclasses.dataclass
+class StoreyCoverage:
+    building_name: str
+    storey_name: str
+    coverage: float
 
 
 class IModelElement(abc.ABC):
@@ -37,6 +49,11 @@ class IModelElement(abc.ABC):
     @property
     def children(self) -> list["IModelElement"]:
         raise NotImplementedError("Children are not implemented for this model element.")
+
+    @abc.abstractmethod
+    def accept(self, visitor: "visitors.IElementAssignmentVisitor", boundaries: list) -> Optional[StoreyCoverage]:
+        """Accept a visitor for double-dispatch."""
+        pass
 
 
 class ModelNodeElement(IModelElement):
@@ -65,6 +82,9 @@ class ModelNodeElement(IModelElement):
     @property
     def children(self) -> list[IModelElement]:
         return self._children
+
+    def accept(self, visitor: "visitors.IElementAssignmentVisitor", boundaries: list) -> Optional[StoreyCoverage]:
+        raise NotImplementedError("Accept is not implemented for this model element.")
 
     def __hash__(self):
         return hash(self._guid.value)
@@ -97,6 +117,9 @@ class ModelLeafElement(IModelElement):
     def kind(self) -> ElementKind:
         return ElementKind.LEAF
 
+    def accept(self, visitor: "visitors.IElementAssignmentVisitor", boundaries: list) -> Optional[StoreyCoverage]:
+        raise NotImplementedError("Accept is not implemented for this model element.")
+
     def __hash__(self):
         return hash(self._guid.value)
 
@@ -112,11 +135,17 @@ class Wall(ModelNodeElement):
     def kind(self) -> ElementKind:
         return ElementKind.WALL
 
+    def accept(self, visitor: "visitors.IElementAssignmentVisitor", boundaries: list) -> Optional[StoreyCoverage]:
+        return visitor.visit_wall(self, boundaries)
+
 
 class Slab(ModelNodeElement):
     @property
     def kind(self) -> ElementKind:
         return ElementKind.SLAB
+
+    def accept(self, visitor: "visitors.IElementAssignmentVisitor", boundaries: list) -> Optional[StoreyCoverage]:
+        return visitor.visit_slab(self, boundaries)
 
 
 class Roof(ModelNodeElement):

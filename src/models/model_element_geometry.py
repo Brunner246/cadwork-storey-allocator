@@ -3,7 +3,7 @@ import abc
 from compas.geometry import Point
 from compas.geometry import Vector
 
-import models
+from .aabb import BoundingBox
 
 
 class IModelElementGeometry(abc.ABC):
@@ -24,6 +24,10 @@ class IModelElementGeometry(abc.ABC):
     def local_origin(self) -> Point:
         pass
 
+    @abc.abstractmethod
+    def bbx(self) -> BoundingBox:
+        pass
+
 
 class ModelElementGeometry(IModelElementGeometry):
     def __init__(self,
@@ -36,7 +40,10 @@ class ModelElementGeometry(IModelElementGeometry):
         self._local_x_direction: Vector = local_x_direction
         self._local_y_direction: Vector = local_y_direction
         self._local_z_direction: Vector = local_z_direction
-        self._bbx: models.BoundingBox = models.BoundingBox.from_points(bbx)
+        try:
+            self._bbx: BoundingBox = BoundingBox.from_points(bbx)
+        except ValueError as e:
+            raise ValueError(f"Invalid Bounding Box data. {e}")
 
         if all(v.length < 1e-6 for v in (local_x_direction, local_y_direction, local_z_direction)):
             raise ValueError("At least one direction vector must be non-zero.")
@@ -52,3 +59,6 @@ class ModelElementGeometry(IModelElementGeometry):
 
     def local_origin(self) -> Point:
         return self._local_origin
+
+    def bbx(self) -> BoundingBox:
+        return self._bbx

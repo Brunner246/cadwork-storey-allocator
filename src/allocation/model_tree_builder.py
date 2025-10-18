@@ -7,6 +7,9 @@ import geometry_controller as gc
 from compas.geometry import Point, Vector
 
 import models
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _classify(ids: Iterable[int]) -> Tuple[List[int], List[int]]:
@@ -38,17 +41,20 @@ class ModelElementTreeBuilder:
 
     def build(self) -> list[models.IModelElement]:
         parents, leaves = _classify(self._all_ids)
-        subgroup_to_children = _group_children(leaves)
+        grouping_to_children = _group_children(leaves)
 
         composites: list[models.IModelElement] = []
         for pid in parents:
             subgroup = grouping_by(pid) or ""
-            children_ids = subgroup_to_children.get(subgroup, [])
-            parent_el = self._create_typed_parent(pid, [self._create_leaf_element(cid) for cid in children_ids])
-            composites.append(parent_el)
+            children_ids = grouping_to_children.get(subgroup, [])
+            try:
+                parent_el = self._create_typed_parent(pid, [self._create_leaf_element(cid) for cid in children_ids])
+                composites.append(parent_el)
+            except ValueError as e:
+                logger.warning(f"Failed to create parent element for {pid}: {e}")
 
         # attach orphan leaves (no parent by subgroup) under a generic container
-        orphans = self._collect_orphans(leaves, subgroup_to_children, set(grouping_by(p) or "" for p in parents))
+        orphans = self._collect_orphans(leaves, grouping_to_children, set(grouping_by(p) or "" for p in parents))
         if orphans:
             container = models.ModelNodeElement(
                 guid=models.create_guid(),  # stable but arbitrary

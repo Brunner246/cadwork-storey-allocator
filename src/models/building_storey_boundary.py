@@ -3,14 +3,20 @@ from typing import Iterable, Tuple
 import compas
 from compas.geometry import Frame
 
+from .spatial_element import Building, BuildingStorey
+
 
 class BuildingStoreyBoundary:
     """Building storey boundary is defined by a bottom and top frame."""
 
-    def __init__(self, identifier: str, bottom_frame: Frame, top_frame: Frame):
-        self.identifier = identifier
+    def __init__(self, building_storey: BuildingStorey, bottom_frame: Frame, top_frame: Frame):
+        self._storey: BuildingStorey = building_storey
         self.bottom_frame = bottom_frame
         self.top_frame = top_frame
+
+    @property
+    def storey(self) -> BuildingStorey:
+        return self._storey
 
     def height(self) -> float:
         """Height of the storey boundary."""
@@ -59,6 +65,7 @@ class BuildingStoreyBoundary:
         return min(zs), max(zs)
 
     def __repr__(self) -> str:
-        return (f"BuildingStoreyBoundary(identifier={self.identifier},"
+        return (f"BuildingStoreyBoundary(storey_name={self._storey.storey_name}, "
+                f"building_name={self._storey.building_name}, "
                 f"bottom_frame={self.bottom_frame}, "
                 f"top_frame={self.top_frame})")

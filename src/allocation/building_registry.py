@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Dict, Iterable, Optional
-from allocation.building_storey_builder import Building
+from models import Building
 
 
 class BuildingRegistry:
@@ -16,7 +16,8 @@ class BuildingRegistry:
         name = building.name
         if not name:
             raise ValueError("Building must have a non-empty name")
-        if name in self._buildings:
+
+        if self._buildings.__contains__(name):
             raise ValueError(f"Building already registered: {name!r}")
         self._buildings[name] = building
 

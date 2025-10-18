@@ -5,45 +5,6 @@ import bim_controller
 import models
 
 
-@dataclasses.dataclass
-class BuildingStorey:
-    building_name: str
-    storey_name: str
-    elevation: float
-
-    # elements: Iterable[models.IModelElement] = dataclasses.field(default_factory=list)
-
-    def __hash__(self) -> int:
-        return hash((self.building_name, self.storey_name))
-
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, BuildingStorey):
-            return NotImplemented
-        return (self.building_name, self.storey_name) == (other.building_name, other.storey_name)
-
-    def __lt__(self, other) -> bool:
-        if not isinstance(other, BuildingStorey):
-            return NotImplemented
-        return self.elevation < other.elevation
-
-
-@dataclasses.dataclass
-class Building:
-    name: str
-    storeys: list[BuildingStorey]
-
-    def __post_init__(self):
-        self.storeys.sort(key=lambda s: s.elevation)
-
-    def __hash__(self) -> int:
-        return hash(self.name)
-
-    def __eq__(self, other) -> bool:
-        if not isinstance(other, Building):
-            return NotImplemented
-        return self.name == other.name
-
-
 def get_buildings() -> list[str]:
     """Get a list of all building IDs in the BIM data."""
     buildings = bim_controller.get_all_buildings()
@@ -68,18 +29,18 @@ def get_building_storeys(building_name: str) -> list[str]:
     return storeys if storeys is not None else []
 
 
-def build_building_storey_hierarchy() -> dict[str, Building]:
+def build_building_storey_hierarchy() -> dict[str, models.Building]:
     """Build a hierarchy of buildings and their storeys from the BIM data."""
-    building_storey_hierarchy: dict[str, Building] = {}
+    building_storey_hierarchy: dict[str, models.Building] = {}
 
     for building_name in get_buildings():
         storeys = set()
-        for storey_name in get_building_storeys(building_name):
+        for storey_name in get_building_storeys(building_name):  # TODO: refactor to wrapper function
             elevation = bim_controller.get_storey_height(building_name, storey_name)
-            if elevation is not None:
-                storey = BuildingStorey(building_name=building_name, storey_name=storey_name, elevation=elevation)
-                storeys.add(storey)
+            # if elevation is not None:
+            storey = models.BuildingStorey(building_name=building_name, storey_name=storey_name, elevation=elevation)
+            storeys.add(storey)
 
-        building_storey_hierarchy[building_name] = Building(name=building_name, storeys=list(storeys))
+        building_storey_hierarchy[building_name] = models.Building(name=building_name, storeys=list(storeys))
 
     return building_storey_hierarchy

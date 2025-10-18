@@ -29,6 +29,8 @@ class BoundingBox:
             The bounding box.
 
         """
+        if len(points) < 3:
+            raise ValueError("At least 3 points are required.")
         bbox = bounding_box(points)
         return cls(bbox)
 
