@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import threading
 from pathlib import Path
 
 import element_controller
@@ -17,6 +18,8 @@ for p in {str(src_dir), str(base_dir), str(dep_dir)}:
 
 import allocation
 import models
+from models.events import events
+from ui.events_dialog import EventsDialog, EventsViewModel
 
 models.setup_colored_logging(logging.DEBUG)
 
@@ -34,30 +37,43 @@ logger = logging.getLogger(__name__)
 def main():
     logger.info("Starting building storey allocation example")
 
-    # TODO: Refactor following to a function SOLID
-    registry = allocation.BuildingRegistry()
+    view_model = EventsViewModel()
+    events.publisher.add_observer(view_model)
+    dialog = EventsDialog(view_model)
 
-    # registry.register("MyBuilding")(make_boundaries())
-    building_nodes = allocation.build_building_storey_hierarchy()
-    for b_name, building in building_nodes.items():
-        logger.info(f"Building {b_name}")
+    def run_processing():
+        # TODO: Refactor following to a function SOLID
+        registry = allocation.BuildingRegistry()
 
-        boundaries = allocation.BuildingStoreyBoundaryCreator.from_building(building)
-        registry.upsert(building)
+        # registry.register("MyBuilding")(make_boundaries())
+        building_nodes = allocation.build_building_storey_hierarchy()
+        for b_name, building in building_nodes.items():
+            logger.info(f"Building {b_name}")
 
-        for b in boundaries:
-            logger.info(f"Boundary: {id(b)}, Bottom Z: {b.bottom_frame.point.z}, Top Z: {b.top_frame.point.z}")
+            boundaries = allocation.BuildingStoreyBoundaryCreator.from_building(building)
+            registry.upsert(building)
 
-        logger.info(f"Building: {b_name}")
-        for storey in building.storeys:
-            logger.info(f"  Storey: {storey.storey_name}, Elevation: {storey.elevation}")
+            for b in boundaries:
+                logger.info(f"Boundary: {id(b)}, Bottom Z: {b.bottom_frame.point.z}, Top Z: {b.top_frame.point.z}")
 
-    [logger.info(f"Registered {key}") for key in registry.names()]
+            logger.info(f"Building: {b_name}")
+            for storey in building.storeys:
+                logger.info(f"  Storey: {storey.storey_name}, Elevation: {storey.elevation}")
 
+        [logger.info(f"Registered {key}") for key in registry.names()]
 
-    element_ids = element_controller.get_all_identifiable_element_ids()
-    storey_assigner = allocation.StoreyAssignmentService(registry, coverage_threshold=0.6)
-    storey_assigner.assign_elements(element_ids)
+        element_ids = element_controller.get_all_identifiable_element_ids()
+        storey_assigner = allocation.StoreyAssignmentService(registry, coverage_threshold=0.6)
+
+        storey_assigner.assign_elements(element_ids)
+        events.publisher.publish(events.SuccessEvent("Storey assignment completed for all elements"))
+
+    processing_thread = threading.Thread(target=run_processing)
+    processing_thread.start()
+
+    dialog.show()
+
+    processing_thread.join()
 
 
 if __name__ == "__main__":

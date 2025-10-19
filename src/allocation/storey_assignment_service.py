@@ -1,19 +1,13 @@
 import logging
 from typing import Iterable, Optional
 
-import bim_controller as bc
-import element_controller as ec
-from bim_controller import set_building_and_storey
+from . import cwapi_wrapper
 
 import allocation
 import models
 import visitors
 
 logger = logging.getLogger(__name__)
-
-
-def get_element_id_from_cadwork_guid(guid: str) -> int:
-    return ec.get_element_from_cadwork_guid(guid)
 
 
 def build_model_element_trees(element_ids: Iterable[int]) -> list[models.IModelElement]:
@@ -25,8 +19,8 @@ def map_model_element_trees_to_buildings(model_element_trees: list[models.IModel
     str, models.IModelElement]:
     buildings_to_nodes: dict[str, models.IModelElement] = {}
     for node in model_element_trees:
-        element_id: int = ec.get_element_from_cadwork_guid(node.guid.value)
-        building_name: str = bc.get_building(element_id) or "UnassignedBuilding"
+        element_id: int = cwapi_wrapper.get_element_id_from_cadwork_guid(node.guid.value)
+        building_name: str = cwapi_wrapper.get_building_name(element_id) or "UnassignedBuilding"
         buildings_to_nodes.setdefault(building_name, node)
 
     return buildings_to_nodes
@@ -86,14 +80,15 @@ class StoreyAssignmentService:
                 storey_name_coverage: Optional[models.StoreyCoverage] = building_element.accept(visitor, boundaries)
 
                 elements = to_assign.setdefault(storey_name_coverage.storey_name, [])
-                elements.append(get_element_id_from_cadwork_guid(building_element.guid.value))
-                elements.extend((get_element_id_from_cadwork_guid(e.guid.value) for e in building_element.children))
+                elements.append(cwapi_wrapper.get_element_id_from_cadwork_guid(building_element.guid.value))
+                elements.extend(
+                    (cwapi_wrapper.get_element_id_from_cadwork_guid(e.guid.value) for e in building_element.children))
 
             # Perform assignments batched per storey
             for storey_name, element_ids in to_assign.items():
                 try:
                     logger.info(f"Setting {len(element_ids)} elements to {building_name}/{storey_name}")
-                    set_building_and_storey(element_ids, building_name, storey_name)
+                    cwapi_wrapper.set_building_storey(element_ids, building_name, storey_name)
                 except Exception as e:
                     logger.exception(
                         f"Failed assigning {len(element_ids)} elements to {building_name}/{storey_name}: {e}"

@@ -5,6 +5,7 @@ import cadwork
 import element_controller as ec
 import geometry_controller as gc
 from compas.geometry import Point, Vector
+from . import cwapi_wrapper
 
 import models
 import logging
@@ -54,7 +55,7 @@ class ModelElementTreeBuilder:
                 logger.warning(f"Failed to create parent element for {pid}: {e}")
 
         # attach orphan leaves (no parent by subgroup) under a generic container
-        orphans = self._collect_orphans(leaves, grouping_to_children, set(grouping_by(p) or "" for p in parents))
+        orphans = self._collect_orphans(grouping_to_children, set(grouping_by(p) or "" for p in parents))
         if orphans:
             container = models.ModelNodeElement(
                 guid=models.create_guid(),  # stable but arbitrary
@@ -67,7 +68,7 @@ class ModelElementTreeBuilder:
         return composites
 
     @staticmethod
-    def _collect_orphans(leaf_ids: Iterable[int], groups: Dict[str, List[int]], parent_groups: set[str]) -> set[int]:
+    def _collect_orphans(groups: Dict[str, List[int]], parent_groups: set[str]) -> set[int]:
         orphans: set[int] = set()
         for subgroup, ids in groups.items():
             if subgroup not in parent_groups:
@@ -97,14 +98,13 @@ class ModelElementTreeBuilder:
 
     @staticmethod
     def _create_element_geometry(element_id: int) -> models.ModelElementGeometry:
-        bbx_vertices = ec.get_bounding_box_vertices_local(element_id, [element_id])
-        bbx_pts = [Point(v.x, v.y, v.z) for v in bbx_vertices]
+        lazy_aabb_query: Callable[[], list[Point]] = lambda: cwapi_wrapper.get_aabb_vertices(element_id)
         return models.ModelElementGeometry(
             Point(gc.get_p1(element_id).x, gc.get_p1(element_id).y, gc.get_p1(element_id).z),
             Vector(gc.get_xl(element_id).x, gc.get_xl(element_id).y, gc.get_xl(element_id).z),
             Vector(gc.get_yl(element_id).x, gc.get_yl(element_id).y, gc.get_yl(element_id).z),
             Vector(gc.get_zl(element_id).x, gc.get_zl(element_id).y, gc.get_zl(element_id).z),
-            bbx_pts,
+            lazy_aabb_query,
         )
 
     @staticmethod
@@ -114,7 +114,8 @@ class ModelElementTreeBuilder:
         y = Vector(0, 1, 0)
         z = Vector(0, 0, 1)
         bbx = [origin, origin, origin, origin, origin, origin, origin, origin]
-        return models.ModelElementGeometry(origin, x, y, z, bbx)
+        lazy_aabb_query: Callable[[], list[Point]] = lambda: bbx
+        return models.ModelElementGeometry(origin, x, y, z, lazy_aabb_query)
 
 
 # Convenience function

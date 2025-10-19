@@ -1,9 +1,9 @@
 import math
-import logging
 
 from compas.geometry import Frame
 
 import models
+from models.events import events
 
 
 class BuildingStoreyBoundaryCreator:
@@ -31,10 +31,16 @@ class BuildingStoreyBoundaryCreator:
                                                                      bottom_frame,
                                                                      top_frame)
                 boundaries.append(boundary)
+                events.publisher.publish(events.SuccessEvent(
+                    f"Created boundary for storey pair: {bottom_storey.storey_name} to {top_storey.storey_name}",
+                    details={'building': building.name}))
+
             except ValueError as e:
-                logger = logging.getLogger(__name__)
-                logger.warning(
-                    f"Skipping invalid storey pair: {bottom_storey.storey_name} to {top_storey.storey_name} due to non-increasing elevations: {e}")
+                events.publisher.publish(events.ErrorEvent(
+                    f"Skipping invalid storey pair: {bottom_storey.storey_name} "
+                    f"to {top_storey.storey_name} due to non-increasing elevations: {e}",
+                    details={'building': building.name}))
+
                 continue
 
         return boundaries

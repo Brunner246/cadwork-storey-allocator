@@ -6,6 +6,8 @@ from .aabb import BoundingBox
 from .colored_logging_setup import setup_colored_logging
 from .building_storey_boundary import BuildingStoreyBoundary
 from .spatial_element import BuildingStorey, Building
+from .events import events
+
 
 __all__ = [
     "Guid",
