@@ -7,4 +7,6 @@ dependencies = [
     "colorama==0.4.6",
     "compas==2.14.1",
     "cwapi3d==32.299.0",
+    "pydevd-pycharm~=252.26830.99"
+    #    "PyQt5==5.15.10"
 ]

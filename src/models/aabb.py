@@ -1,4 +1,5 @@
 from compas.geometry import bounding_box
+from compas.geometry import Point
 
 
 class BoundingBox:
@@ -44,3 +45,22 @@ class BoundingBox:
 
         """
         return self._corner_points
+
+    def centroid(self) -> Point:
+        """Returns the centroid of the bounding box.
+
+        Returns
+        -------
+        list[float]
+            XYZ coordinates of the centroid.
+
+        """
+        x_coords = [p[0] for p in self._corner_points]
+        y_coords = [p[1] for p in self._corner_points]
+        z_coords = [p[2] for p in self._corner_points]
+        centroid = [
+            sum(x_coords) / len(x_coords),
+            sum(y_coords) / len(y_coords),
+            sum(z_coords) / len(z_coords),
+        ]
+        return Point(*centroid)

@@ -1,7 +1,7 @@
-from compas.geometry import Point, Vector
-import element_controller as ec
 import bim_controller as bc
 import cadwork
+import element_controller as ec
+from compas.geometry import Point, Vector
 
 
 def get_aabb_vertices(element_id: int) -> list[Point]:
@@ -32,4 +32,15 @@ def set_building_storey(element_ids: list[int], building_name: str, storey_name:
 
 
 def get_element_id_from_cadwork_guid(guid: str) -> int:
+    guid = guid if not guid.islower() else guid.upper()
+    if not guid.startswith('{') and not guid.endswith('}'):
+        guid = '{' + guid + '}'
     return ec.get_element_from_cadwork_guid(guid)
+
+
+def get_all_element_ids() -> list[int]:
+    return ec.get_all_identifiable_element_ids()
+
+
+def get_active_element_ids() -> list[int]:
+    return ec.get_active_identifiable_element_ids()

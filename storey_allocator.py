@@ -1,10 +1,7 @@
 import logging
 import os
 import sys
-import threading
 from pathlib import Path
-
-import element_controller
 
 base_dir = Path(__file__).absolute().parent
 src_dir = base_dir / "src"
@@ -19,33 +16,19 @@ for p in {str(src_dir), str(base_dir), str(dep_dir)}:
 import allocation
 import models
 from models.events import events
-from ui.events_dialog import EventsDialog, EventsViewModel
 
 models.setup_colored_logging(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
 
-# logger.info("Hello colored world")
-#
-# logging.basicConfig(level=logging.DEBUG,
-#                     format="%(asctime)s [%(levelname)s] %(message)s",
-#                     datefmt="%Y-%m-%d %H:%M:%S")
-# logger = logging.getLogger(__name__)
-
-
-def main():
-    logger.info("Starting building storey allocation example")
-
-    view_model = EventsViewModel()
-    events.publisher.add_observer(view_model)
-    dialog = EventsDialog(view_model)
-
-    def run_processing():
-        # TODO: Refactor following to a function SOLID
+@models.decorators.timeit("Storey allocation and event publishing")
+def run_allocation_and_publish_events():
+    """Run the storey allocation logic synchronously and publish events to the global publisher.
+    """
+    try:
         registry = allocation.BuildingRegistry()
 
-        # registry.register("MyBuilding")(make_boundaries())
         building_nodes = allocation.build_building_storey_hierarchy()
         for b_name, building in building_nodes.items():
             logger.info(f"Building {b_name}")
@@ -53,8 +36,10 @@ def main():
             boundaries = allocation.BuildingStoreyBoundaryCreator.from_building(building)
             registry.upsert(building)
 
-            for b in boundaries:
-                logger.info(f"Boundary: {id(b)}, Bottom Z: {b.bottom_frame.point.z}, Top Z: {b.top_frame.point.z}")
+            for boundary in boundaries:
+                logger.info(
+                    f"Boundary: {id(boundary)}, Bottom Z: {boundary.bottom_frame.point.z}, Top Z: {boundary.top_frame.point.z}"
+                )
 
             logger.info(f"Building: {b_name}")
             for storey in building.storeys:
@@ -62,18 +47,43 @@ def main():
 
         [logger.info(f"Registered {key}") for key in registry.names()]
 
-        element_ids = element_controller.get_all_identifiable_element_ids()
         storey_assigner = allocation.StoreyAssignmentService(registry, coverage_threshold=0.6)
 
+        element_ids = allocation.cwapi_wrapper.get_active_element_ids()  # .get_all_element_ids()
         storey_assigner.assign_elements(element_ids)
         events.publisher.publish(events.SuccessEvent("Storey assignment completed for all elements"))
+    except Exception as exc:
+        logger.exception("Error during processing")
+        events.publisher.publish(events.ErrorEvent(str(exc)))
 
-    processing_thread = threading.Thread(target=run_processing)
-    processing_thread.start()
 
-    dialog.show()
+def _print_events_to_console():
+    # fallback when PyQt5 isn't available or when running headless
+    print("\nStorey allocation events:\n")
+    for ev in events.publisher.events:
+        if isinstance(ev, events.ErrorEvent):
+            print(f"ERROR: {ev.message}")
+        elif isinstance(ev, events.SuccessEvent):
+            print(f"SUCCESS: {ev.message}")
+        else:
+            print(f"EVENT: {ev.message}")
 
-    processing_thread.join()
+
+def main():
+    logger.info("Starting building storey allocation example")
+
+    DEBUG_MODE = True
+    if debug := DEBUG_MODE:
+        logger.info(f"Debug mode enabled {debug=}, connecting to PyCharm debugger...")
+        try:
+            import pydevd_pycharm
+            pydevd_pycharm.settrace('localhost', port=9000, stdout_to_server=True, stderr_to_server=True)
+        except ModuleNotFoundError as exception:
+            logger.exception(f"Failed to connect to PyCharm debugger {exception=}")
+
+    # Run allocation logic synchronously (no threads). This will populate events.publisher.events
+    run_allocation_and_publish_events()
+    _print_events_to_console()
 
 
 if __name__ == "__main__":

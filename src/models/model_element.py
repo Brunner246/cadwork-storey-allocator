@@ -118,7 +118,7 @@ class ModelLeafElement(IModelElement):
         return ElementKind.LEAF
 
     def accept(self, visitor: "visitors.IElementAssignmentVisitor", boundaries: list) -> Optional[StoreyCoverage]:
-        raise NotImplementedError("Accept is not implemented for this model element.")
+        return visitor.visit_leaf(self, boundaries)
 
     def __hash__(self):
         return hash(self._guid.value)

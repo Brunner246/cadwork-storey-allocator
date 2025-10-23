@@ -32,6 +32,7 @@ class VerticalCoverageAssignmentVisitor(IElementAssignmentVisitor):
         # Containers might not be assigned
         return None
 
+    @models.decorators.log_calls
     def visit_leaf(self, leaf: models.ModelLeafElement, boundaries: list[models.BuildingStoreyBoundary]) -> Optional[
         models.StoreyCoverage]:
         # Generic fallback
@@ -41,25 +42,41 @@ class VerticalCoverageAssignmentVisitor(IElementAssignmentVisitor):
                                      boundaries: list[models.BuildingStoreyBoundary]) -> Optional[
         models.StoreyCoverage]:
         bbox_points = element.geometry.bbx().to_list()
-        best_storey: str = ""
+        best_storey: models.BuildingStorey | None = None
         best_coverage: float = 0.0
 
         for boundary in boundaries:
             coverage = self._vertical_coverage(boundary, bbox_points)
             if coverage > best_coverage:
-                best_storey = boundary.storey.storey_name
+                best_storey = boundary.storey
                 best_coverage = coverage
 
         if best_coverage >= self._coverage_threshold:
-            return models.StoreyCoverage(building_name=best_storey,
-                                         storey_name=best_storey,
+            return models.StoreyCoverage(building_name=best_storey.building_name,
+                                         storey_name=best_storey.storey_name,
                                          coverage=best_coverage)  # best_storey, best_coverage
         return None
 
-    def _assign_by_centroid(self, element: models.IModelElement, boundaries: list[models.BuildingStoreyBoundary]) -> \
-            Optional[models.StoreyCoverage]:
-        # Implementation for centroid-based assignment
-        pass
+    def _assign_by_centroid(self, element: models.IModelElement,
+                            boundaries: list[models.BuildingStoreyBoundary]) -> Optional[models.StoreyCoverage]:
+        centroid = element.geometry.bbx().centroid()
+        centroid_z = centroid.z
+        best_storey: models.BuildingStorey | None = None
+        best_coverage: float = 0.0
+
+        for boundary in boundaries:
+            b_min, b_max = boundary.z_range()
+            # For a point: coverage is 1.0 if the centroid Z lies within the storey range, else 0.0
+            coverage = 1.0 if (b_min <= centroid_z <= b_max) else 0.0
+            if coverage > best_coverage:
+                best_storey = boundary.storey
+                best_coverage = coverage
+
+        if best_coverage >= self._coverage_threshold and best_storey is not None:
+            return models.StoreyCoverage(building_name=best_storey.building_name,
+                                         storey_name=best_storey.storey_name,
+                                         coverage=best_coverage)
+        return None
 
     def _assign_to_top_storey(self, element: models.IModelElement, boundaries: list[models.BuildingStoreyBoundary]) -> \
             Optional[models.StoreyCoverage]:

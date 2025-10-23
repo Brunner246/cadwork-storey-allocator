@@ -5,7 +5,7 @@ import bim_controller
 import models
 
 
-def get_buildings() -> list[str]:
+def get_buildings_names() -> list[str]:
     """Get a list of all building IDs in the BIM data."""
     buildings = bim_controller.get_all_buildings()
     return buildings if buildings is not None else []
@@ -33,7 +33,7 @@ def build_building_storey_hierarchy() -> dict[str, models.Building]:
     """Build a hierarchy of buildings and their storeys from the BIM data."""
     building_storey_hierarchy: dict[str, models.Building] = {}
 
-    for building_name in get_buildings():
+    for building_name in get_buildings_names():
         storeys = set()
         for storey_name in get_building_storeys(building_name):  # TODO: refactor to wrapper function
             elevation = bim_controller.get_storey_height(building_name, storey_name)

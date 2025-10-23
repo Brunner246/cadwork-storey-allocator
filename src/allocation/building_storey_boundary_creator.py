@@ -19,7 +19,7 @@ class BuildingStoreyBoundaryCreator:
     def from_building(building: models.Building) -> list[models.BuildingStoreyBoundary]:
         storeys = building.storeys
         # frame low z is storey elevation frame top z is next storey elevation
-        boundaries = []
+        boundaries: list[models.BuildingStoreyBoundary] = []
         for i in range(len(storeys) - 1):
             bottom_storey = storeys[i]
             top_storey = storeys[i + 1]

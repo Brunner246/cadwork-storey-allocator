@@ -15,6 +15,10 @@ class Guid:
     def value(self) -> str:
         return str(self._uuid)
 
+    @property
+    def value_with_braces(self) -> str:
+        return f'{{{self._uuid}}}'
+
 
 def create_guid() -> Guid:
     return Guid(uuid.uuid4())

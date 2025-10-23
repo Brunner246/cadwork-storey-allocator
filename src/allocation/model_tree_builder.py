@@ -7,6 +7,8 @@ import geometry_controller as gc
 from compas.geometry import Point, Vector
 from . import cwapi_wrapper
 
+ac.set_attribute_display_settings_for_2d()
+
 import models
 import logging
 

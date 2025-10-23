@@ -44,8 +44,13 @@ class ModelElementGeometry(IModelElementGeometry):
         self._lazy_bbx: Callable[[], list[Point]] = lazy_bbx
         self._bbx: BoundingBox | None = None
 
-        if all(v.length < 1e-6 for v in (local_x_direction, local_y_direction, local_z_direction)):
-            raise ValueError("At least one direction vector must be non-zero.")
+        if all(abs(v.length) < 1e-6 for v in
+               (self._local_x_direction, self._local_y_direction, self._local_z_direction)):
+            raise ValueError(
+                f"At least one direction vector must be non-zero. Vectors provided: "
+                f"{self._local_x_direction=} - "
+                f"{self._local_y_direction=} - "
+                f"{self._local_z_direction=}")
 
     def local_x_direction(self) -> Vector:
         return self._local_x_direction
