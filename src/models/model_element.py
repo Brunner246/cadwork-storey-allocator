@@ -15,6 +15,7 @@ class ElementKind(Enum):
     SLAB = auto()
     ROOF = auto()
     CONTAINER = auto()
+    ORPHAN_PARENT = auto()
     LEAF = auto()
 
 
@@ -158,3 +159,12 @@ class Container(ModelNodeElement):
     @property
     def kind(self) -> ElementKind:
         return ElementKind.CONTAINER
+
+
+class OrphanParent(ModelNodeElement):
+    @property
+    def kind(self) -> ElementKind:
+        return ElementKind.ORPHAN_PARENT
+
+    def accept(self, visitor: "visitors.IElementAssignmentVisitor", boundaries: list) -> Optional[StoreyCoverage]:
+        return visitor.visit_orphan(self, boundaries)

@@ -1,43 +1,35 @@
 """
 CAD API Adapter
 
-This module provides an abstraction layer over the cadwork API controllers,
-allowing for dependency injection and easier testing.
-
-Usage:
-    # Production code:
-    adapter = CadworkAdapter()
-    builder = ModelElementTreeBuilder(element_ids, adapter)
-    
-    # Test code:
-    mock_adapter = MockCadAdapter()
-    builder = ModelElementTreeBuilder(element_ids, mock_adapter)
+This module provides an abstraction layer over the cadwork API controllers.
 """
 from enum import Enum
 from typing import Protocol, runtime_checkable
 
 from compas.geometry import Point, Vector
 
+from models import Guid
+
 
 class ElementGroupingType(Enum):
+    """Element grouping types for CAD systems."""
     GROUP = 1
     SUBGROUP = 2
 
 
-@runtime_checkable
-class ICadAdapter(Protocol):
-    """Protocol defining the interface for CAD API operations.
-    
-    This protocol can be implemented by production adapters (wrapping real CAD APIs)
-    or by mock/stub implementations for testing purposes.
-    """
+# ============================================================================
+# Segregated Interface Protocols (ISP - Interface Segregation Principle)
+# ============================================================================
 
-    # Element Controller operations
+@runtime_checkable
+class IElementIdentifier(Protocol):
+    """Protocol for element identification operations."""
+    
     def get_element_cadwork_guid(self, element_id: int) -> str:
         """Get the cadwork GUID for an element."""
         ...
 
-    def get_element_from_cadwork_guid(self, guid: str) -> int:
+    def get_element_from_cadwork_guid(self, guid: Guid) -> int:
         """Get element ID from cadwork GUID."""
         ...
 
@@ -49,11 +41,15 @@ class ICadAdapter(Protocol):
         """Get active/selected element IDs."""
         ...
 
+
+@runtime_checkable
+class IElementGeometry(Protocol):
+    """Protocol for element geometry operations."""
+    
     def get_bounding_box_vertices_local(self, element_id: int, reference_ids: list[int]) -> list[Point]:
         """Get bounding box vertices for an element."""
         ...
 
-    # Geometry Controller operations
     def get_p1(self, element_id: int) -> Point:
         """Get reference point P1 of an element."""
         ...
@@ -70,7 +66,11 @@ class ICadAdapter(Protocol):
         """Get Z-axis local vector of an element."""
         ...
 
-    # Attribute Controller operations
+
+@runtime_checkable
+class IElementClassification(Protocol):
+    """Protocol for element type classification operations."""
+    
     def get_name(self, element_id: int) -> str:
         """Get element name."""
         ...
@@ -90,7 +90,24 @@ class ICadAdapter(Protocol):
     def is_container(self, element_id: int) -> bool:
         """Check if element is a container."""
         ...
+    
+    def is_node(self, element_id: int) -> bool:
+        """Check if element is a node."""
+        ...
+        
+    def is_line(self, element_id: int) -> bool:
+        """Check if element is a line."""
+        ...
+        
+    def is_dimension(self, element_id: int) -> bool:
+        """Check if element is a dimension."""
+        ...
 
+
+@runtime_checkable
+class IElementGrouping(Protocol):
+    """Protocol for element grouping operations."""
+    
     def get_subgroup(self, element_id: int) -> str:
         """Get element subgroup."""
         ...
@@ -103,7 +120,11 @@ class ICadAdapter(Protocol):
         """Get current element grouping type (group or subgroup)."""
         ...
 
-    # BIM Controller operations
+
+@runtime_checkable
+class IBuildingInformation(Protocol):
+    """Protocol for BIM building and storey operations."""
+    
     def get_building(self, element_id: int) -> str:
         """Get building name for an element."""
         ...
@@ -125,27 +146,53 @@ class ICadAdapter(Protocol):
         ...
 
 
-class CadworkAdapter(ICadAdapter):
-    """Production adapter wrapping the cadwork API controllers.
+# ============================================================================
+# Composite Interface for Full CAD Adapter (for backward compatibility)
+# ============================================================================
+
+@runtime_checkable
+class ICadAdapter(
+    IElementIdentifier,
+    IElementGeometry,
+    IElementClassification,
+    IElementGrouping,
+    IBuildingInformation,
+    Protocol
+):
+    """Composite protocol combining all CAD adapter interfaces.
+    
+    This interface provides backward compatibility while allowing
+    clients to depend on smaller, focused interfaces when needed.
+    
+    Clients should prefer depending on the specific interfaces they need:
+    - IElementIdentifier: For GUID and element ID operations
+    - IElementGeometry: For geometric queries
+    - IElementClassification: For type checking (wall, floor, etc.)
+    - IElementGrouping: For group/subgroup operations
+    - IBuildingInformation: For BIM data operations
     """
+    pass
 
-    def __init__(self):
-        import element_controller as ec
-        import geometry_controller as gc
-        import attribute_controller as ac
-        import bim_controller as bc
 
-        self._ec = ec
-        self._gc = gc
-        self._ac = ac
-        self._bc = bc
+# ============================================================================
+# Specialized Adapter Implementations (Composition over Inheritance)
+# ============================================================================
 
-    # Element Controller operations
+class ElementIdentifierAdapter(IElementIdentifier):
+    """Specialized adapter for element identification operations.
+    
+    This class implements only IElementIdentifier, following SRP.
+    It wraps the cadwork element_controller for ID and GUID operations.
+    """
+    
+    def __init__(self, element_controller):
+        self._ec = element_controller
+    
     def get_element_cadwork_guid(self, element_id: int) -> str:
         return self._ec.get_element_cadwork_guid(element_id)
 
-    def get_element_from_cadwork_guid(self, guid: str) -> int:
-        return self._ec.get_element_from_cadwork_guid(guid)
+    def get_element_from_cadwork_guid(self, guid: Guid) -> int:
+        return self._ec.get_element_from_cadwork_guid(guid.value_with_braces.upper())
 
     def get_all_identifiable_element_ids(self) -> list[int]:
         return self._ec.get_all_identifiable_element_ids()
@@ -153,11 +200,22 @@ class CadworkAdapter(ICadAdapter):
     def get_active_identifiable_element_ids(self) -> list[int]:
         return self._ec.get_active_identifiable_element_ids()
 
+
+class ElementGeometryAdapter(IElementGeometry):
+    """Specialized adapter for element geometry operations.
+    
+    This class implements only IElementGeometry, following SRP.
+    It wraps cadwork element_controller and geometry_controller.
+    """
+    
+    def __init__(self, element_controller, geometry_controller):
+        self._ec = element_controller
+        self._gc = geometry_controller
+    
     def get_bounding_box_vertices_local(self, element_id: int, reference_ids: list[int]) -> list[Point]:
         vertices = self._ec.get_bounding_box_vertices_local(element_id, reference_ids)
         return [to_point(v) for v in vertices]
 
-    # Geometry Controller operations
     def get_p1(self, element_id: int) -> Point:
         return to_point(self._gc.get_p1(element_id))
 
@@ -170,7 +228,17 @@ class CadworkAdapter(ICadAdapter):
     def get_zl(self, element_id: int) -> Vector:
         return to_vector(self._gc.get_zl(element_id))
 
-    # Attribute Controller operations
+
+class ElementClassificationAdapter(IElementClassification):
+    """Specialized adapter for element type classification.
+    
+    This class implements only IElementClassification, following SRP.
+    It wraps the cadwork attribute_controller for type checking.
+    """
+    
+    def __init__(self, attribute_controller):
+        self._ac = attribute_controller
+    
     def get_name(self, element_id: int) -> str:
         return self._ac.get_name(element_id)
 
@@ -185,7 +253,28 @@ class CadworkAdapter(ICadAdapter):
 
     def is_container(self, element_id: int) -> bool:
         return self._ac.is_container(element_id)
+    
+    def is_node(self, element_id: int) -> bool:
+        return self._ac.is_node(element_id)
+    
+    def is_line(self, element_id: int) -> bool:
+        return self._ac.is_line(element_id)
+    
+    def is_dimension(self, element_id: int) -> bool:
+        element_type = self._ac.get_element_type(element_id)
+        return element_type is not None and element_type.is_dimension()
 
+
+class ElementGroupingAdapter(IElementGrouping):
+    """Specialized adapter for element grouping operations.
+    
+    This class implements only IElementGrouping, following SRP.
+    It wraps the cadwork attribute_controller for group operations.
+    """
+    
+    def __init__(self, attribute_controller):
+        self._ac = attribute_controller
+    
     def get_subgroup(self, element_id: int) -> str:
         return self._ac.get_subgroup(element_id)
 
@@ -195,7 +284,17 @@ class CadworkAdapter(ICadAdapter):
     def get_element_grouping_type(self) -> ElementGroupingType:
         return ElementGroupingType(self._ac.get_element_grouping_type().value)
 
-    # BIM Controller operations
+
+class BuildingInformationAdapter(IBuildingInformation):
+    """Specialized adapter for BIM building and storey operations.
+    
+    This class implements only IBuildingInformation, following SRP.
+    It wraps the cadwork bim_controller for BIM data operations.
+    """
+    
+    def __init__(self, bim_controller):
+        self._bc = bim_controller
+    
     def get_building(self, element_id: int) -> str:
         return self._bc.get_building(element_id)
 
@@ -210,6 +309,141 @@ class CadworkAdapter(ICadAdapter):
 
     def get_storey_elevation(self, building_name: str, storey_name: str) -> float:
         return self._bc.get_storey_height(building_name, storey_name)
+
+
+# ============================================================================
+# Facade Adapter (Composition-based)
+# ============================================================================
+
+class CadworkAdapter(ICadAdapter):
+    """Facade adapter providing unified access to all CAD operations.
+    
+    This adapter uses composition to delegate to specialized adapters,
+    following the Facade Pattern and Composition over Inheritance.
+    
+    Design benefits:
+    - Each specialized adapter has a single responsibility (SRP)
+    - Easy to test individual adapters in isolation
+    - Can inject different implementations per interface
+    - Clients can use specialized adapters directly if needed
+    - Follows Dependency Inversion Principle (DIP)
+    
+    Usage:
+        # Use facade for convenience
+        adapter = CadworkAdapter()
+        
+        # Or use specialized adapters directly
+        identifier = adapter.identifier
+        geometry = adapter.geometry
+    """
+
+    def __init__(self):
+        import element_controller as ec
+        import geometry_controller as gc
+        import attribute_controller as ac
+        import bim_controller as bc
+
+        # Create specialized adapters (composition)
+        self.identifier = ElementIdentifierAdapter(ec)
+        self.geometry = ElementGeometryAdapter(ec, gc)
+        self.classification = ElementClassificationAdapter(ac)
+        self.grouping = ElementGroupingAdapter(ac)
+        self.building_info = BuildingInformationAdapter(bc)
+
+    # ========================================================================
+    # IElementIdentifier - Delegate to specialized adapter
+    # ========================================================================
+    
+    def get_element_cadwork_guid(self, element_id: int) -> str:
+        return self.identifier.get_element_cadwork_guid(element_id)
+
+    def get_element_from_cadwork_guid(self, guid: Guid) -> int:
+        return self.identifier.get_element_from_cadwork_guid(guid)
+
+    def get_all_identifiable_element_ids(self) -> list[int]:
+        return self.identifier.get_all_identifiable_element_ids()
+
+    def get_active_identifiable_element_ids(self) -> list[int]:
+        return self.identifier.get_active_identifiable_element_ids()
+
+    # ========================================================================
+    # IElementGeometry - Delegate to specialized adapter
+    # ========================================================================
+    
+    def get_bounding_box_vertices_local(self, element_id: int, reference_ids: list[int]) -> list[Point]:
+        return self.geometry.get_bounding_box_vertices_local(element_id, reference_ids)
+
+    def get_p1(self, element_id: int) -> Point:
+        return self.geometry.get_p1(element_id)
+
+    def get_xl(self, element_id: int) -> Vector:
+        return self.geometry.get_xl(element_id)
+
+    def get_yl(self, element_id: int) -> Vector:
+        return self.geometry.get_yl(element_id)
+
+    def get_zl(self, element_id: int) -> Vector:
+        return self.geometry.get_zl(element_id)
+
+    # ========================================================================
+    # IElementClassification - Delegate to specialized adapter
+    # ========================================================================
+    
+    def get_name(self, element_id: int) -> str:
+        return self.classification.get_name(element_id)
+
+    def is_wall(self, element_id: int) -> bool:
+        return self.classification.is_wall(element_id)
+
+    def is_floor(self, element_id: int) -> bool:
+        return self.classification.is_floor(element_id)
+
+    def is_roof(self, element_id: int) -> bool:
+        return self.classification.is_roof(element_id)
+
+    def is_container(self, element_id: int) -> bool:
+        return self.classification.is_container(element_id)
+    
+    def is_node(self, element_id: int) -> bool:
+        return self.classification.is_node(element_id)
+    
+    def is_line(self, element_id: int) -> bool:
+        return self.classification.is_line(element_id)
+    
+    def is_dimension(self, element_id: int) -> bool:
+        return self.classification.is_dimension(element_id)
+
+    # ========================================================================
+    # IElementGrouping - Delegate to specialized adapter
+    # ========================================================================
+    
+    def get_subgroup(self, element_id: int) -> str:
+        return self.grouping.get_subgroup(element_id)
+
+    def get_group(self, element_id: int) -> str:
+        return self.grouping.get_group(element_id)
+
+    def get_element_grouping_type(self) -> ElementGroupingType:
+        return self.grouping.get_element_grouping_type()
+
+    # ========================================================================
+    # IBuildingInformation - Delegate to specialized adapter
+    # ========================================================================
+    
+    def get_building(self, element_id: int) -> str:
+        return self.building_info.get_building(element_id)
+
+    def set_building_and_storey(self, element_ids: list[int], building_name: str, storey_name: str) -> None:
+        self.building_info.set_building_and_storey(element_ids, building_name, storey_name)
+
+    def get_buildings(self) -> list[str]:
+        return self.building_info.get_buildings()
+
+    def get_building_storeys(self, building_name: str) -> list[str]:
+        return self.building_info.get_building_storeys(building_name)
+
+    def get_storey_elevation(self, building_name: str, storey_name: str) -> float:
+        return self.building_info.get_storey_elevation(building_name, storey_name)
 
 
 # Utility conversion functions

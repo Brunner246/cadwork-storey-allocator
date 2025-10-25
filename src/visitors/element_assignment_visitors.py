@@ -31,3 +31,8 @@ class IElementAssignmentVisitor(ABC):
     def visit_leaf(self, leaf: models.ModelLeafElement, boundaries: list[models.BuildingStoreyBoundary]) -> Optional[
         models.StoreyCoverage]:
         pass
+
+    @abstractmethod
+    def visit_orphan(self, orphan: models.OrphanParent, boundaries: list[models.BuildingStoreyBoundary]) -> Optional[
+        models.StoreyCoverage]:
+        pass

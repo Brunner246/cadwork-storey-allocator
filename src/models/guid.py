@@ -19,6 +19,20 @@ class Guid:
     def value_with_braces(self) -> str:
         return f'{{{self._uuid}}}'
 
+    def __eq__(self, other) -> bool:
+        """Compare GUIDs by their UUID value."""
+        if not isinstance(other, Guid):
+            return False
+        return self._uuid == other._uuid
+
+    def __hash__(self) -> int:
+        """Allow Guid objects to be used as dictionary keys."""
+        return hash(self._uuid)
+
+    def __repr__(self) -> str:
+        """String representation for debugging."""
+        return f'Guid({self._uuid})'
+
 
 def create_guid() -> Guid:
     return Guid(uuid.uuid4())

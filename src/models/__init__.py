@@ -1,5 +1,6 @@
 from .guid import Guid, create_guid
-from .model_element import (IModelElement, ModelLeafElement, ModelNodeElement, Roof, Wall, Slab, Container, ElementKind,
+from .model_element import (IModelElement, ModelLeafElement, ModelNodeElement, Roof, Wall, Slab, Container,
+                            OrphanParent, ElementKind,
                             StoreyCoverage)
 from .model_element_geometry import IModelElementGeometry, ModelElementGeometry
 from .aabb import BoundingBox
@@ -19,6 +20,7 @@ __all__ = [
     "Slab",
     "Roof",
     "Container",
+    "OrphanParent",
     "ElementKind",
     "IModelElementGeometry",
     "ModelElementGeometry",

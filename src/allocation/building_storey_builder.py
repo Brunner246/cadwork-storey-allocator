@@ -5,30 +5,6 @@ import models
 from cad_adapter import ICadAdapter
 
 
-# def get_buildings_names() -> list[str]:
-#     """Get a list of all building IDs in the BIM data."""
-#     buildings = bim_controller.get_all_buildings()
-#     return buildings if buildings is not None else []
-
-
-# def get_building_for_element(element_id: int) -> str | None:
-#     """Get the building ID associated with an element, if any."""
-#     building_name = bim_controller.get_building(element_id)
-#     return building_name if building_name is not None else None
-#
-#
-# def get_storey_for_element(element_id: int) -> str | None:
-#     """Get the storey ID associated with an element, if any."""
-#     storey_name = bim_controller.get_storey(element_id)
-#     return storey_name if storey_name is not None else None
-
-
-# def get_building_storeys(building_name: str) -> list[str]:
-#     """Get a list of storeys for a given building."""
-#     storeys = bim_controller.get_all_storeys(building_name)
-#     return storeys if storeys is not None else []
-
-
 class BuildingStoreyHierarchyBuilder:
     """Builder for creating a hierarchy of buildings and their storeys from BIM data."""
 

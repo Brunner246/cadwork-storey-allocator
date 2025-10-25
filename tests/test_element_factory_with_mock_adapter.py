@@ -7,6 +7,7 @@ This test shows how the adapter pattern enables testing without a running CAD in
 import pytest
 from tests.mock_cad_adapter import MockCadAdapter
 from src.allocation.model_element_factory import ModelElementFactory
+from models import Guid
 
 
 class TestModelElementFactory:
@@ -19,7 +20,7 @@ class TestModelElementFactory:
         mock.add_element(
             element_id=1,
             name="TestBeam",
-            guid="a710a36f-2211-4b51-b2a8-30725eafddad",
+            guid=Guid("a710a36f-2211-4b51-b2a8-30725eafddad"),
             p1=(10, 20, 30),
             xl=(5, 0, 0),
             yl=(0, 2, 0),
@@ -32,7 +33,7 @@ class TestModelElementFactory:
 
         # Assert
         assert element.name == "TestBeam"
-        assert element.guid.value == "a710a36f-2211-4b51-b2a8-30725eafddad"
+        assert element.guid == Guid("a710a36f-2211-4b51-b2a8-30725eafddad")
         assert element.geometry.local_origin().x == 10
         assert element.geometry.local_origin().y == 20
         assert element.geometry.local_origin().z == 30

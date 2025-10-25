@@ -2,6 +2,12 @@
 Example mock adapter for testing CAD-dependent code without a running CAD instance.
 
 This demonstrates how to create mock implementations of ICadAdapter for unit testing.
+The MockCadAdapter implements all segregated interfaces:
+- IElementIdentifier: Element ID and GUID operations
+- IElementGeometry: Geometric queries
+- IElementClassification: Type checking (wall, floor, etc.)
+- IElementGrouping: Group/subgroup operations
+- IBuildingInformation: BIM data operations
 """
 
 from typing import Dict
@@ -9,20 +15,20 @@ from typing import Dict
 from compas.geometry import Point, Vector
 
 from src.cad_adapter import cad_adapter
-from models import create_guid
+from models import Guid
 
 
 class MockCadAdapter(cad_adapter.ICadAdapter):
     """Mock implementation of ICadAdapter for testing.
     
     This mock stores element data in memory and provides predictable responses
-    for testing purposes.
+    for testing purposes. It implements all five segregated interfaces.
     
     Example usage:
         # Setup test data
         mock = MockCadAdapter()
-        mock.add_element(1, "Wall-001", is_wall=True, guid="{GUID-001}")
-        mock.add_element(2, "Beam-001", is_wall=False, guid="{GUID-002}")
+        mock.add_element(1, "Wall-001", is_wall=True, guid=None)
+        mock.add_element(2, "Beam-001", is_wall=False, guid=None)
         
         # Use in tests
         factory = ModelElementFactory(mock)
@@ -33,31 +39,33 @@ class MockCadAdapter(cad_adapter.ICadAdapter):
     def __init__(self):
         """Initialize the mock adapter with empty data structures."""
         self._elements: Dict[int, dict] = {}
-        self._guids_to_ids: Dict[str, int] = {}
+        self._guids_to_ids: Dict[Guid, int] = {}
         self._grouping_type = cad_adapter.ElementGroupingType.SUBGROUP  # subgroup
         self._all_element_ids: list[int] = []
         self._active_element_ids: list[int] = []
 
-    def add_element(
-            self,
-            element_id: int,
-            name: str = "TestElement",
-            guid: str = None,
-            is_wall: bool = False,
-            is_floor: bool = False,
-            is_roof: bool = False,
-            is_container: bool = False,
-            group: str = "",
-            subgroup: str = "",
-            p1: tuple[float, float, float] = (0, 0, 0),
-            xl: tuple[float, float, float] = (1, 0, 0),
-            yl: tuple[float, float, float] = (0, 1, 0),
-            zl: tuple[float, float, float] = (0, 0, 1),
-            building: str = "TestBuilding"
-    ):
+    def add_element(self,
+                    element_id: int,
+                    name: str = "TestElement",
+                    guid: Guid = None,
+                    is_wall: bool = False,
+                    is_floor: bool = False,
+                    is_roof: bool = False,
+                    is_container: bool = False,
+                    is_node: bool = False,
+                    is_line: bool = False,
+                    is_dimension: bool = False,
+                    group: str = "",
+                    subgroup: str = "",
+                    p1: tuple[float, float, float] = (0, 0, 0),
+                    xl: tuple[float, float, float] = (1, 0, 0),
+                    yl: tuple[float, float, float] = (0, 1, 0),
+                    zl: tuple[float, float, float] = (0, 0, 1),
+                    building: str = "TestBuilding"
+                    ):
 
-        if guid is None:
-            guid = create_guid()  # f"{{GUID-{element_id:04d}}}"
+        # if guid is None:
+        #     guid = create_guid()  # f"{{GUID-{element_id:04d}}}"
 
         self._elements[element_id] = {
             'name': name,
@@ -66,6 +74,9 @@ class MockCadAdapter(cad_adapter.ICadAdapter):
             'is_floor': is_floor,
             'is_roof': is_roof,
             'is_container': is_container,
+            'is_node': is_node,
+            'is_line': is_line,
+            'is_dimension': is_dimension,
             'group': group,
             'subgroup': subgroup,
             'p1': Point(*p1),
@@ -84,9 +95,12 @@ class MockCadAdapter(cad_adapter.ICadAdapter):
 
     # Element Controller operations
     def get_element_cadwork_guid(self, element_id: int) -> str:
-        return self._elements.get(element_id, {}).get('guid', '')
+        guid = self._elements.get(element_id, {}).get('guid')
+        if guid is None:
+            return ''
+        return guid.value if isinstance(guid, Guid) else str(guid)
 
-    def get_element_from_cadwork_guid(self, guid: str) -> int:
+    def get_element_from_cadwork_guid(self, guid: Guid) -> int:
         return self._guids_to_ids.get(guid, 0)
 
     def get_all_identifiable_element_ids(self) -> list[int]:
@@ -136,6 +150,15 @@ class MockCadAdapter(cad_adapter.ICadAdapter):
 
     def is_container(self, element_id: int) -> bool:
         return self._elements.get(element_id, {}).get('is_container', False)
+
+    def is_node(self, element_id: int) -> bool:
+        return self._elements.get(element_id, {}).get('is_node', False)
+
+    def is_line(self, element_id: int) -> bool:
+        return self._elements.get(element_id, {}).get('is_line', False)
+
+    def is_dimension(self, element_id: int) -> bool:
+        return self._elements.get(element_id, {}).get('is_dimension', False)
 
     def get_subgroup(self, element_id: int) -> str:
         return self._elements.get(element_id, {}).get('subgroup', '')

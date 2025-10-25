@@ -26,7 +26,7 @@ class ModelElementFactory:
     def create(self, element_id: int) -> IModelElement:
         """Create a ModelElement from an element id."""
 
-        lazy_aabb_query: Callable[[], list[Point]] = lambda: cad_adapter.get_aabb_vertices(element_id)
+        lazy_aabb_query: Callable[[], list[Point]] = lambda: self._adapter.get_bounding_box_vertices_local(element_id, [element_id])
 
         geometry = ModelElementGeometry(
             cad_adapter.to_point(self._adapter.get_p1(element_id)),

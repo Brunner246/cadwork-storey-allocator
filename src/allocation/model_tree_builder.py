@@ -71,8 +71,8 @@ class ModelElementTreeBuilder:
         # attach orphan leaves (no parent by subgroup) under a generic container
         orphans = self._collect_orphans(grouping_to_children, set(self._grouping_by(p) or "" for p in parents))
         if orphans:
-            container = models.ModelNodeElement(
-                guid=models.create_guid(),  # stable but arbitrary
+            container = models.OrphanParent(
+                guid=models.Guid(self._adapter.get_element_cadwork_guid(list(orphans)[0])), # models.create_guid() # stable but arbitrary
                 name="Orphans",
                 geometry=self._empty_geometry(),
                 children=[self._create_leaf_element(i) for i in orphans],
@@ -114,7 +114,7 @@ class ModelElementTreeBuilder:
 
     def _create_element_geometry(self, element_id: int) -> models.ModelElementGeometry:
         """Create geometry for an element."""
-        lazy_aabb_query: Callable[[], list[Point]] = lambda: cad_adapter.get_aabb_vertices(element_id)
+        lazy_aabb_query: Callable[[], list[Point]] = lambda: self._adapter.get_bounding_box_vertices_local(element_id, [element_id])
         return models.ModelElementGeometry(
             cad_adapter.to_point(self._adapter.get_p1(element_id)),
             cad_adapter.to_vector(self._adapter.get_xl(element_id)),

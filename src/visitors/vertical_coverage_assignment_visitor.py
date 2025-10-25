@@ -57,6 +57,10 @@ class VerticalCoverageAssignmentVisitor(IElementAssignmentVisitor):
                                          coverage=best_coverage)  # best_storey, best_coverage
         return None
 
+    def visit_orphan(self, orphan: models.OrphanParent, boundaries: list[models.BuildingStoreyBoundary]) -> Optional[
+        models.StoreyCoverage]:
+        return self._assign_by_vertical_coverage(orphan, boundaries)
+
     def _assign_by_centroid(self, element: models.IModelElement,
                             boundaries: list[models.BuildingStoreyBoundary]) -> Optional[models.StoreyCoverage]:
         centroid = element.geometry.bbx().centroid()
@@ -85,8 +89,17 @@ class VerticalCoverageAssignmentVisitor(IElementAssignmentVisitor):
 
     @staticmethod
     def _vertical_coverage(boundary, bbox_points) -> float:
-
-        zs = [p.z for p in bbox_points]
+        # bbox_points can be either Point objects or list[float] depending on source
+        # Normalize to get z coordinates
+        zs = []
+        for p in bbox_points:
+            if hasattr(p, 'z'):
+                zs.append(p.z)
+            elif isinstance(p, (list, tuple)) and len(p) >= 3:
+                zs.append(p[2])
+            else:
+                raise TypeError(f"Expected Point or list/tuple with 3 elements, got {type(p)}")
+        
         z_min, z_max = min(zs), max(zs)
         if z_max <= z_min:
             return 0.0
