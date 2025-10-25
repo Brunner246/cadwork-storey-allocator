@@ -22,3 +22,9 @@ class Guid:
 
 def create_guid() -> Guid:
     return Guid(uuid.uuid4())
+
+
+if __name__ == "__main__":
+    g = create_guid()
+    print(g.value)
+    print(g.value_with_braces)

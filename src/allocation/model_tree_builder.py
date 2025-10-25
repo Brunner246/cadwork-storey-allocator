@@ -40,7 +40,7 @@ class ModelElementTreeBuilder:
 
     def _grouping_by(self, element_id: int) -> str:
         """Get grouping key for an element based on current grouping type."""
-        if self._adapter.get_element_grouping_type() == cad_adapter.ElementGroupingType.SUBGROUP:
+        if self._adapter.get_element_grouping_type().value == cad_adapter.ElementGroupingType.SUBGROUP.value:
             return self._adapter.get_subgroup(element_id)
         else:
             return self._adapter.get_group(element_id)

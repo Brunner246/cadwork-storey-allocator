@@ -8,11 +8,11 @@ from typing import Dict
 
 from compas.geometry import Point, Vector
 
-from cad_adapter.cad_adapter import ICadAdapter, ElementGroupingType
+from src.cad_adapter import cad_adapter
 from models import create_guid
 
 
-class MockCadAdapter(ICadAdapter):
+class MockCadAdapter(cad_adapter.ICadAdapter):
     """Mock implementation of ICadAdapter for testing.
     
     This mock stores element data in memory and provides predictable responses
@@ -34,7 +34,7 @@ class MockCadAdapter(ICadAdapter):
         """Initialize the mock adapter with empty data structures."""
         self._elements: Dict[int, dict] = {}
         self._guids_to_ids: Dict[str, int] = {}
-        self._grouping_type = ElementGroupingType.SUBGROUP  # subgroup
+        self._grouping_type = cad_adapter.ElementGroupingType.SUBGROUP  # subgroup
         self._all_element_ids: list[int] = []
         self._active_element_ids: list[int] = []
 
@@ -143,10 +143,10 @@ class MockCadAdapter(ICadAdapter):
     def get_group(self, element_id: int) -> str:
         return self._elements.get(element_id, {}).get('group', '')
 
-    def get_element_grouping_type(self) -> ElementGroupingType:
+    def get_element_grouping_type(self) -> cad_adapter.ElementGroupingType:
         return self._grouping_type
 
-    def set_element_grouping_type(self, grouping_type: int):
+    def set_element_grouping_type(self, grouping_type: cad_adapter.ElementGroupingType):
         """Set the grouping type for testing."""
         self._grouping_type = grouping_type
 

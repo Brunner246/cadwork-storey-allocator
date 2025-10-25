@@ -11,3 +11,13 @@ dependencies = [
     "pydevd-pycharm~=252.26830.99",
     "pytest==8.4.2",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+]
