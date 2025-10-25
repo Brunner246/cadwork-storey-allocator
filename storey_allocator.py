@@ -16,6 +16,7 @@ for p in {str(src_dir), str(base_dir), str(dep_dir)}:
 import allocation
 import models
 from models.events import events
+from cad_adapter.cad_adapter import ICadAdapter, CadworkAdapter
 
 models.setup_colored_logging(logging.DEBUG)
 
@@ -29,7 +30,10 @@ def run_allocation_and_publish_events():
     try:
         registry = allocation.BuildingRegistry()
 
-        building_nodes = allocation.build_building_storey_hierarchy()
+        cad_adapter: ICadAdapter = CadworkAdapter()
+        builder_conf = allocation.BuildingStoreyHierarchyBuilder.Config(cad_adapter)
+        building_storey_builder = allocation.BuildingStoreyHierarchyBuilder(config=builder_conf)
+        building_nodes = building_storey_builder.build()
         for b_name, building in building_nodes.items():
             logger.info(f"Building {b_name}")
 
@@ -47,9 +51,9 @@ def run_allocation_and_publish_events():
 
         [logger.info(f"Registered {key}") for key in registry.names()]
 
-        storey_assigner = allocation.StoreyAssignmentService(registry, coverage_threshold=0.6)
+        storey_assigner = allocation.StoreyAssignmentService(registry, cad_adapter, coverage_threshold=0.6)
 
-        element_ids = allocation.cwapi_wrapper.get_active_element_ids()  # .get_all_element_ids()
+        element_ids = cad_adapter.get_active_identifiable_element_ids()  # .get_all_element_ids()
         storey_assigner.assign_elements(element_ids)
         events.publisher.publish(events.SuccessEvent("Storey assignment completed for all elements"))
     except Exception as exc:

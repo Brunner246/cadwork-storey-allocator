@@ -1,36 +1,36 @@
 import logging
 import sys
-from typing import Iterable, Optional, Generator, Any
+from typing import Iterable, Optional, Generator
 
 import attribute_controller  # TODO: move to cwapi_wrapper
 
-import allocation
 import models
 import visitors
 from models import IModelElement
-from . import cwapi_wrapper
+import cad_adapter
+from .model_tree_builder import ModelElementTreeBuilder
+from .building_registry import BuildingRegistry
+from .building_storey_boundary_creator import BuildingStoreyBoundaryCreator
 
 logger = logging.getLogger(__name__)
 
 
-def build_model_element_trees(element_ids: Iterable[int]) -> list[models.IModelElement]:
-    tree_builder = allocation.ModelElementTreeBuilder(element_ids)
+def build_model_element_trees(element_ids: Iterable[int], adapter: cad_adapter.ICadAdapter) -> list[
+    models.IModelElement]:
+    """Build model element trees using the provided adapter.
+    
+    Args:
+        element_ids: Iterable of element IDs to process.
+        adapter: An implementation of ICadAdapter for accessing CAD data.
+        
+    Returns:
+        List of root model elements in the tree.
+    """
+    tree_builder = ModelElementTreeBuilder(element_ids, adapter)
     return tree_builder.build()
 
 
-def map_model_element_trees_to_buildings(model_element_trees: list[models.IModelElement]) -> dict[
-    str, list[models.IModelElement]]:
-    """Map each model element tree to its corresponding building name."""
-    buildings_to_nodes: dict[str, list[models.IModelElement]] = {}
-    for node in model_element_trees:
-        element_id: int = cwapi_wrapper.get_element_id_from_cadwork_guid(node.guid.value)
-        building_name: str = cwapi_wrapper.get_building_name(element_id) or "UnassignedBuilding"
-        buildings_to_nodes.setdefault(building_name, []).append(node)
-
-    return buildings_to_nodes
-
-
-def filter_valid_elements(element_ids: Iterable[int]) -> Generator[int]:
+def filter_valid_elements(element_ids: Iterable[int]) -> Generator[int, None, None]:
     valid_elements = (eid for eid in element_ids if
                       not attribute_controller.is_node(eid)
                       and not attribute_controller.is_line(eid)
@@ -48,11 +48,13 @@ class StoreyAssignmentService:
       - Logs decisions
     """
 
-    def __init__(self, registry: allocation.BuildingRegistry, coverage_threshold: float = 0.60) -> None:
+    def __init__(self, registry: BuildingRegistry, cad_adapter: cad_adapter.ICadAdapter,
+                 coverage_threshold: float = 0.60) -> None:
         if not (0.0 <= coverage_threshold <= 1.0):
             raise ValueError("coverage_threshold must be in [0,1]")
         self._registry = registry
         self._coverage_threshold = coverage_threshold
+        self._cad_adapter = cad_adapter
 
     @models.decorators.timeit("Assign elements to storeys")
     def assign_elements(self, element_ids: Iterable[int]) -> None:
@@ -66,15 +68,15 @@ class StoreyAssignmentService:
 
         valid_elements = filter_valid_elements(element_ids)
 
-        model_element_trees = build_model_element_trees(valid_elements)
-        building_tree_nodes: dict[str, list[models.IModelElement]] = map_model_element_trees_to_buildings(
+        model_element_trees = build_model_element_trees(valid_elements, self._cad_adapter)
+        building_tree_nodes: dict[str, list[models.IModelElement]] = self.map_model_element_trees_to_buildings(
             model_element_trees)
 
         for building_name, building in self._registry.items():
             logger.info(f"Processing building: {building_name}")
 
             # Create storey boundaries (one per vertical span)
-            boundaries: list[models.BuildingStoreyBoundary] = allocation.BuildingStoreyBoundaryCreator.from_building(
+            boundaries: list[models.BuildingStoreyBoundary] = BuildingStoreyBoundaryCreator.from_building(
                 building)
             if not boundaries:
                 logger.warning(f"No boundaries for building {building_name}")
@@ -113,17 +115,28 @@ class StoreyAssignmentService:
                     continue
 
                 elements = to_assign.setdefault(storey_name_coverage.storey_name, [])
-                elements.append(cwapi_wrapper.get_element_id_from_cadwork_guid(building_element.guid.value))
+                elements.append(self._cad_adapter.get_element_from_cadwork_guid(building_element.guid.value))
                 elements.extend(
-                    (cwapi_wrapper.get_element_id_from_cadwork_guid(e.guid.value) for e in
+                    (self._cad_adapter.get_element_from_cadwork_guid(e.guid.value) for e in
                      building_element.children))
 
             # Perform assignments batched per storey
             for storey_name, element_ids in to_assign.items():
                 try:
                     logger.info(f"Setting {len(element_ids)} elements to {building_name}/{storey_name}")
-                    cwapi_wrapper.set_building_storey(element_ids, building_name, storey_name)
+                    self._cad_adapter.set_building_and_storey(element_ids, building_name, storey_name)
                 except Exception as e:
                     logger.exception(
                         f"Failed assigning {len(element_ids)} elements to {building_name}/{storey_name}: {e}"
                     )
+
+    def map_model_element_trees_to_buildings(self, model_element_trees: list[models.IModelElement]) -> dict[
+        str, list[models.IModelElement]]:
+        """Map each model element tree to its corresponding building name."""
+        buildings_to_nodes: dict[str, list[models.IModelElement]] = {}
+        for node in model_element_trees:
+            element_id: int = self._cad_adapter.get_element_from_cadwork_guid(node.guid.value)
+            building_name: str = self._cad_adapter.get_building(element_id) or "UnassignedBuilding"
+            buildings_to_nodes.setdefault(building_name, []).append(node)
+
+        return buildings_to_nodes

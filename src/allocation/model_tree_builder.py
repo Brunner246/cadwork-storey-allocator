@@ -1,54 +1,66 @@
 from typing import Iterable, Dict, List, Tuple, Callable
 
-import attribute_controller as ac
 import cadwork
-import element_controller as ec
-import geometry_controller as gc
 from compas.geometry import Point, Vector
-from . import cwapi_wrapper
 
-ac.set_attribute_display_settings_for_2d()
-
+import cad_adapter
 import models
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-def _classify(ids: Iterable[int]) -> Tuple[List[int], List[int]]:
-    parents, leaves = [], []
-    for i in ids:
-        if ac.is_wall(i) or ac.is_floor(i) or ac.is_roof(i) or ac.is_container(i):
-            parents.append(i)
-        else:
-            leaves.append(i)
-    return parents, leaves
-
-
-grouping_by: Callable[[int], str] = lambda x: ac.get_subgroup(x) \
-    if ac.get_element_grouping_type() == cadwork.element_grouping_type.subgroup \
-    else lambda y: ac.get_group(y)
-
-
-def _group_children(leaf_ids: Iterable[int]) -> Dict[str, List[int]]:
-    groups: Dict[str, List[int]] = {}
-    for i in leaf_ids:
-        subgroup = grouping_by(i) or ""
-        groups.setdefault(subgroup, []).append(i)
-    return groups
-
-
 class ModelElementTreeBuilder:
-    def __init__(self, element_ids: Iterable[int]):
+    """Builds a tree of ModelElements from CAD element IDs.
+    
+    This builder uses dependency injection to allow for testing without
+    a running CAD instance.
+    """
+
+    def __init__(self, element_ids: Iterable[int], adapter: cad_adapter.ICadAdapter):
+        """Initialize the builder with element IDs and a CAD adapter.
+        
+        Args:
+            element_ids: Iterable of element IDs to process.
+            adapter: An implementation of ICadAdapter for accessing CAD data.
+        """
         self._all_ids: List[int] = list(element_ids)
+        self._adapter = adapter
+
+    def _classify(self, ids: Iterable[int]) -> Tuple[List[int], List[int]]:
+        """Classify elements into parents (walls, floors, etc.) and leaves."""
+        parents, leaves = [], []
+        for i in ids:
+            if (self._adapter.is_wall(i) or self._adapter.is_floor(i) or
+                    self._adapter.is_roof(i) or self._adapter.is_container(i)):
+                parents.append(i)
+            else:
+                leaves.append(i)
+        return parents, leaves
+
+    def _grouping_by(self, element_id: int) -> str:
+        """Get grouping key for an element based on current grouping type."""
+        if self._adapter.get_element_grouping_type() == cad_adapter.ElementGroupingType.SUBGROUP:
+            return self._adapter.get_subgroup(element_id)
+        else:
+            return self._adapter.get_group(element_id)
+
+    def _group_children(self, leaf_ids: Iterable[int]) -> Dict[str, List[int]]:
+        """Group leaf elements by their group/subgroup."""
+        groups: Dict[str, List[int]] = {}
+        for i in leaf_ids:
+            subgroup = self._grouping_by(i) or ""
+            groups.setdefault(subgroup, []).append(i)
+        return groups
 
     def build(self) -> list[models.IModelElement]:
-        parents, leaves = _classify(self._all_ids)
-        grouping_to_children = _group_children(leaves)
+        """Build the model element tree."""
+        parents, leaves = self._classify(self._all_ids)
+        grouping_to_children = self._group_children(leaves)
 
         composites: list[models.IModelElement] = []
         for pid in parents:
-            subgroup = grouping_by(pid) or ""
+            subgroup = self._grouping_by(pid) or ""
             children_ids = grouping_to_children.get(subgroup, [])
             try:
                 parent_el = self._create_typed_parent(pid, [self._create_leaf_element(cid) for cid in children_ids])
@@ -57,7 +69,7 @@ class ModelElementTreeBuilder:
                 logger.warning(f"Failed to create parent element for {pid}: {e}")
 
         # attach orphan leaves (no parent by subgroup) under a generic container
-        orphans = self._collect_orphans(grouping_to_children, set(grouping_by(p) or "" for p in parents))
+        orphans = self._collect_orphans(grouping_to_children, set(self._grouping_by(p) or "" for p in parents))
         if orphans:
             container = models.ModelNodeElement(
                 guid=models.create_guid(),  # stable but arbitrary
@@ -78,34 +90,36 @@ class ModelElementTreeBuilder:
         return orphans
 
     def _create_typed_parent(self, parent_id: int, children: list[models.IModelElement]) -> models.IModelElement:
-        guid = models.Guid(ec.get_element_cadwork_guid(parent_id))
-        name = ac.get_name(parent_id)
+        """Create a typed parent element (Wall, Floor, Roof, Container)."""
+        guid = models.Guid(self._adapter.get_element_cadwork_guid(parent_id))
+        name = self._adapter.get_name(parent_id)
         geom = self._create_element_geometry(parent_id)
-        if ac.is_wall(parent_id):
+        if self._adapter.is_wall(parent_id):
             return models.Wall(guid, name, geom, children)
-        if ac.is_floor(parent_id):
+        if self._adapter.is_floor(parent_id):
             return models.Slab(guid, name, geom, children)
-        if ac.is_roof(parent_id):
+        if self._adapter.is_roof(parent_id):
             return models.Roof(guid, name, geom, children)
-        if ac.is_container(parent_id):
+        if self._adapter.is_container(parent_id):
             return models.Container(guid, name, geom, children)
         # Fallback
         return models.ModelNodeElement(guid, name, geom, children)
 
     def _create_leaf_element(self, element_id: int) -> models.ModelLeafElement:
-        guid = models.Guid(ec.get_element_cadwork_guid(element_id))
-        name = ac.get_name(element_id)
+        """Create a leaf element."""
+        guid = models.Guid(self._adapter.get_element_cadwork_guid(element_id))
+        name = self._adapter.get_name(element_id)
         geom = self._create_element_geometry(element_id)
         return models.ModelLeafElement(guid, name, geom)
 
-    @staticmethod
-    def _create_element_geometry(element_id: int) -> models.ModelElementGeometry:
-        lazy_aabb_query: Callable[[], list[Point]] = lambda: cwapi_wrapper.get_aabb_vertices(element_id)
+    def _create_element_geometry(self, element_id: int) -> models.ModelElementGeometry:
+        """Create geometry for an element."""
+        lazy_aabb_query: Callable[[], list[Point]] = lambda: cad_adapter.get_aabb_vertices(element_id)
         return models.ModelElementGeometry(
-            Point(gc.get_p1(element_id).x, gc.get_p1(element_id).y, gc.get_p1(element_id).z),
-            Vector(gc.get_xl(element_id).x, gc.get_xl(element_id).y, gc.get_xl(element_id).z),
-            Vector(gc.get_yl(element_id).x, gc.get_yl(element_id).y, gc.get_yl(element_id).z),
-            Vector(gc.get_zl(element_id).x, gc.get_zl(element_id).y, gc.get_zl(element_id).z),
+            cad_adapter.to_point(self._adapter.get_p1(element_id)),
+            cad_adapter.to_vector(self._adapter.get_xl(element_id)),
+            cad_adapter.to_vector(self._adapter.get_yl(element_id)),
+            cad_adapter.to_vector(self._adapter.get_zl(element_id)),
             lazy_aabb_query,
         )
 
@@ -120,6 +134,14 @@ class ModelElementTreeBuilder:
         return models.ModelElementGeometry(origin, x, y, z, lazy_aabb_query)
 
 
-# Convenience function
-def build_model_tree(element_ids: Iterable[int]) -> list[models.IModelElement]:
-    return ModelElementTreeBuilder(element_ids).build()
+def build_model_tree(element_ids: Iterable[int], adapter: cad_adapter.ICadAdapter) -> list[models.IModelElement]:
+    """Build a model tree from element IDs using the provided adapter.
+    
+    Args:
+        element_ids: Iterable of element IDs to process.
+        adapter: An implementation of ICadAdapter for accessing CAD data.
+        
+    Returns:
+        List of root model elements in the tree.
+    """
+    return ModelElementTreeBuilder(element_ids, adapter).build()

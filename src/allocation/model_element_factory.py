@@ -1,52 +1,50 @@
 from collections.abc import Callable
 
-import attribute_controller as ac
-import cadwork
-import element_controller as ec
-import geometry_controller as gc
-from compas.geometry import Point, Vector
+from compas.geometry import Point
 
 import models
-from . import cwapi_wrapper
+import cad_adapter
 from models.model_element import ModelLeafElement, IModelElement
 from models.model_element_geometry import ModelElementGeometry
 
 
 class ModelElementFactory:
+    """Factory for creating ModelElements from CAD element IDs.
+    
+    This factory uses dependency injection to allow for testing without
+    a running CAD instance.
+    """
 
-    @staticmethod
-    def to_vector(vec3: cadwork.point_3d) -> Vector:
-        return Vector(vec3.x, vec3.y, vec3.z)
+    def __init__(self, adapter: cad_adapter.ICadAdapter):
+        """Initialize the factory with a CAD adapter.
+        
+        Args:
+            adapter: An implementation of ICadAdapter for accessing CAD data.
+        """
+        self._adapter = adapter
 
-    @staticmethod
-    def to_point(p3: cadwork.point_3d) -> Point:
-        return Point(p3.x, p3.y, p3.z)
-
-    @classmethod
-    def create(cls, element_id: int) -> IModelElement:
+    def create(self, element_id: int) -> IModelElement:
         """Create a ModelElement from an element id."""
 
-        lazy_aabb_query: Callable[[], list[Point]] = lambda: cwapi_wrapper.get_aabb_vertices(element_id)
+        lazy_aabb_query: Callable[[], list[Point]] = lambda: cad_adapter.get_aabb_vertices(element_id)
 
         geometry = ModelElementGeometry(
-            cls.to_point(gc.get_p1(element_id)),
-            cls.to_vector(gc.get_xl(element_id)),
-            cls.to_vector(gc.get_yl(element_id)),
-            cls.to_vector(gc.get_zl(element_id)),
+            cad_adapter.to_point(self._adapter.get_p1(element_id)),
+            cad_adapter.to_vector(self._adapter.get_xl(element_id)),
+            cad_adapter.to_vector(self._adapter.get_yl(element_id)),
+            cad_adapter.to_vector(self._adapter.get_zl(element_id)),
             lazy_aabb_query,
         )
 
-        # if is_wall := ac.is_wall(element_id):
+        # if is_wall := self._adapter.is_wall(element_id):
         #     return models.Wall(
-        #         models.Guid(ec.get_element_cadwork_guid(element_id)),
-        #         ac.get_name(element_id),
+        #         models.Guid(self._adapter.get_element_cadwork_guid(element_id)),
+        #         self._adapter.get_name(element_id),
         #         geometry,
         #     )
 
         return ModelLeafElement(
-            models.Guid(ec.get_element_cadwork_guid(element_id)),
-            ac.get_name(element_id),
+            models.Guid(self._adapter.get_element_cadwork_guid(element_id)),
+            self._adapter.get_name(element_id),
             geometry,
         )
-
-
