@@ -1,15 +1,3 @@
-"""
-Example mock adapter for testing CAD-dependent code without a running CAD instance.
-
-This demonstrates how to create mock implementations of ICadAdapter for unit testing.
-The MockCadAdapter implements all segregated interfaces:
-- IElementIdentifier: Element ID and GUID operations
-- IElementGeometry: Geometric queries
-- IElementClassification: Type checking (wall, floor, etc.)
-- IElementGrouping: Group/subgroup operations
-- IBuildingInformation: BIM data operations
-"""
-
 from typing import Dict
 
 from compas.geometry import Point, Vector
@@ -19,25 +7,9 @@ from models import Guid
 
 
 class MockCadAdapter(cad_adapter.ICadAdapter):
-    """Mock implementation of ICadAdapter for testing.
-    
-    This mock stores element data in memory and provides predictable responses
-    for testing purposes. It implements all five segregated interfaces.
-    
-    Example usage:
-        # Setup test data
-        mock = MockCadAdapter()
-        mock.add_element(1, "Wall-001", is_wall=True, guid=None)
-        mock.add_element(2, "Beam-001", is_wall=False, guid=None)
-        
-        # Use in tests
-        factory = ModelElementFactory(mock)
-        element = factory.create(1)
-        assert element.name == "Wall-001"
-    """
+    """Mock implementation of ICadAdapter for testing."""
 
     def __init__(self):
-        """Initialize the mock adapter with empty data structures."""
         self._elements: Dict[int, dict] = {}
         self._guids_to_ids: Dict[Guid, int] = {}
         self._grouping_type = cad_adapter.ElementGroupingType.SUBGROUP  # subgroup
@@ -110,7 +82,6 @@ class MockCadAdapter(cad_adapter.ICadAdapter):
         return self._active_element_ids.copy()
 
     def get_bounding_box_vertices_local(self, element_id: int, reference_ids: list[int]) -> list[Point]:
-        # Return a simple box for testing
         return [
             Point(0, 0, 0),
             Point(1, 0, 0),

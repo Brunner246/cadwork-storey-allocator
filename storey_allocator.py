@@ -22,12 +22,14 @@ models.setup_colored_logging(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
+# publisher = models.events.EventPublisher()
 
 @models.decorators.timeit("Storey allocation and event publishing")
 def run_allocation_and_publish_events():
     """Run the storey allocation logic synchronously and publish events to the global publisher.
     """
     try:
+
         registry = allocation.BuildingRegistry()
 
         cad_adapter: ICadAdapter = CadworkAdapter()

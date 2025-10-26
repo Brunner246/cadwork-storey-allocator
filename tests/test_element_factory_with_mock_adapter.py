@@ -1,9 +1,3 @@
-"""
-Example test demonstrating how to test CAD-dependent code using the mock adapter.
-
-This test shows how the adapter pattern enables testing without a running CAD instance.
-"""
-
 import pytest
 from tests.mock_cad_adapter import MockCadAdapter
 from src.allocation.model_element_factory import ModelElementFactory

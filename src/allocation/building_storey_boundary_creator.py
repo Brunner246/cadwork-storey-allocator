@@ -20,12 +20,13 @@ class BuildingStoreyBoundaryCreator:
         storeys = building.storeys
         # frame low z is storey elevation frame top z is next storey elevation
         boundaries: list[models.BuildingStoreyBoundary] = []
+        
+        # Create boundaries for all storeys except the last one
         for i in range(len(storeys) - 1):
             bottom_storey = storeys[i]
             top_storey = storeys[i + 1]
             bottom_frame = Frame([0, 0, bottom_storey.elevation], [1, 0, 0], [0, 1, 0])
             top_frame = Frame([0, 0, top_storey.elevation], [1, 0, 0], [0, 1, 0])
-            # identifier = f"{building.name}_{bottom_storey.storey_name}"
             try:
                 boundary = BuildingStoreyBoundaryCreator.from_frames(bottom_storey,
                                                                      bottom_frame,
@@ -40,8 +41,28 @@ class BuildingStoreyBoundaryCreator:
                     f"Skipping invalid storey pair: {bottom_storey.storey_name} "
                     f"to {top_storey.storey_name} due to non-increasing elevations: {e}",
                     details={'building': building.name}))
-
                 continue
+        
+        # Create boundary for the topmost storey (extends to infinity by default)
+        if len(storeys) > 0:
+            last_storey = storeys[-1]
+            bottom_frame = Frame([0, 0, last_storey.elevation], [1, 0, 0], [0, 1, 0])
+            # Top frame starts at a reasonable height above the last storey
+            # This will be extended to infinity later by _extend_topmost_storey
+            # Using 3000mm (3m) as default storey height
+            top_frame = Frame([0, 0, last_storey.elevation + 3000.0], [1, 0, 0], [0, 1, 0])
+            try:
+                boundary = BuildingStoreyBoundaryCreator.from_frames(last_storey,
+                                                                     bottom_frame,
+                                                                     top_frame)
+                boundaries.append(boundary)
+                events.publisher.publish(events.SuccessEvent(
+                    f"Created boundary for topmost storey: {last_storey.storey_name}",
+                    details={'building': building.name}))
+            except ValueError as e:
+                events.publisher.publish(events.ErrorEvent(
+                    f"Failed to create boundary for topmost storey: {last_storey.storey_name}: {e}",
+                    details={'building': building.name}))
 
         return boundaries
 

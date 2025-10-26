@@ -114,7 +114,8 @@ class ModelElementTreeBuilder:
 
     def _create_element_geometry(self, element_id: int) -> models.ModelElementGeometry:
         """Create geometry for an element."""
-        lazy_aabb_query: Callable[[], list[Point]] = lambda: self._adapter.get_bounding_box_vertices_local(element_id, [element_id])
+        lazy_aabb_query: Callable[[], list[Point]] = lambda: self._adapter.get_bounding_box_vertices_local(element_id,
+                                                                                                           [element_id])
         return models.ModelElementGeometry(
             cad_adapter.to_point(self._adapter.get_p1(element_id)),
             cad_adapter.to_vector(self._adapter.get_xl(element_id)),

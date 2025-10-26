@@ -17,6 +17,25 @@ class BuildingNoNameError(ErrorEvent):
         super().__init__(message, details)
 
 
+class Observer:
+    def __init__(self):
+        self.events = []
+
+    def add_event(self, event: Event):
+        self.events.append(event)
+
+    def process_events(self):
+        for event in self.events:
+            if isinstance(event, ErrorEvent):
+                print(f"Error: {event.message}")
+            elif isinstance(event, SuccessEvent):
+                print(f"Success: {event.message}")
+            else:
+                print(f"Event: {event.message}")
+
+
+
+
 class EventPublisher:
     def __init__(self):
         self.events = []

@@ -41,20 +41,23 @@ class VerticalCoverageAssignmentVisitor(IElementAssignmentVisitor):
     def _assign_by_vertical_coverage(self, element: models.IModelElement,
                                      boundaries: list[models.BuildingStoreyBoundary]) -> Optional[
         models.StoreyCoverage]:
+        """Assign element to storey based on vertical coverage.
+        
+        Returns the first storey that meets the coverage threshold. When multiple storeys
+        have equal coverage, the first one (lowest elevation) is chosen.
+        """
         bbox_points = element.geometry.bbx().to_list()
-        best_storey: models.BuildingStorey | None = None
-        best_coverage: float = 0.0
-
+        
+        # Find first storey that meets the threshold
         for boundary in boundaries:
             coverage = self._vertical_coverage(boundary, bbox_points)
-            if coverage > best_coverage:
-                best_storey = boundary.storey
-                best_coverage = coverage
-
-        if best_coverage >= self._coverage_threshold and best_storey is not None:
-            return models.StoreyCoverage(building_name=best_storey.building_name,
-                                         storey_name=best_storey.storey_name,
-                                         coverage=best_coverage)  # best_storey, best_coverage
+            if coverage >= self._coverage_threshold:
+                return models.StoreyCoverage(
+                    building_name=boundary.storey.building_name,
+                    storey_name=boundary.storey.storey_name,
+                    coverage=coverage
+                )
+        
         return None
 
     def visit_orphan(self, orphan: models.OrphanParent, boundaries: list[models.BuildingStoreyBoundary]) -> Optional[

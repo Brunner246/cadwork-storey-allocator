@@ -43,6 +43,10 @@ def _flatten_element_tree(element_nodes: list[models.IModelElement]) -> list[mod
     return flattened
 
 
+def element_id_valid(element_id: int) -> bool:
+    return element_id > 0
+
+
 class StoreyAssignmentService:
     """
     Service that:
@@ -67,12 +71,11 @@ class StoreyAssignmentService:
         at least coverage_threshold fraction with a storey boundary.
         """
         valid_elements = self.filter_valid_elements(element_ids)
-        model_element_trees = self.build_model_element_trees(valid_elements)
+        model_element_trees = self.build_model_element_tree_nodes(valid_elements)
         building_tree_nodes = self.map_model_element_trees_to_buildings(model_element_trees)
 
         for building_name, building in self._registry.items():
             self._process_building(building_name, building, building_tree_nodes)
-
 
     def _process_building(self,
                           building_name: str,
@@ -94,12 +97,10 @@ class StoreyAssignmentService:
         to_assign = self._assign_elements_to_storeys(building_element_nodes, boundaries)
         self._batch_assign_to_cad(building_name, to_assign)
 
-
-    def _create_and_validate_boundaries(
-            self,
-            building: models.Building,
-            building_name: str
-    ) -> Optional[list[models.BuildingStoreyBoundary]]:
+    @staticmethod
+    def _create_and_validate_boundaries(building: models.Building,
+                                        building_name: str
+                                        ) -> Optional[list[models.BuildingStoreyBoundary]]:
         """Create storey boundaries for a building and extend the topmost storey to infinity."""
         boundaries = BuildingStoreyBoundaryCreator.from_building(building)
         if not boundaries:
@@ -110,11 +111,10 @@ class StoreyAssignmentService:
         _extend_topmost_storey(boundaries)
         return boundaries
 
-    def _assign_elements_to_storeys(
-            self,
-            building_element_nodes: list[models.IModelElement],
-            boundaries: list[models.BuildingStoreyBoundary]
-    ) -> dict[str, list[int]]:
+    def _assign_elements_to_storeys(self,
+                                    building_element_nodes: list[models.IModelElement],
+                                    boundaries: list[models.BuildingStoreyBoundary]
+                                    ) -> dict[str, list[int]]:
         """Assign elements to storeys based on vertical coverage."""
         to_assign: dict[str, list[int]] = {}
         all_elements = _flatten_element_tree(building_element_nodes)
@@ -124,12 +124,11 @@ class StoreyAssignmentService:
 
         return to_assign
 
-    def _assign_single_element(
-            self,
-            building_element: models.IModelElement,
-            boundaries: list[models.BuildingStoreyBoundary],
-            to_assign: dict[str, list[int]]
-    ) -> None:
+    def _assign_single_element(self,
+                               building_element: models.IModelElement,
+                               boundaries: list[models.BuildingStoreyBoundary],
+                               to_assign: dict[str, list[int]]
+                               ) -> None:
         """Assign a single element to its appropriate storey."""
         visitor = visitors.VerticalCoverageAssignmentVisitor(self._coverage_threshold)
         storey_coverage = building_element.accept(visitor, boundaries)
@@ -145,25 +144,24 @@ class StoreyAssignmentService:
         to_assign.setdefault(storey_coverage.storey_name, []).extend(element_ids)
 
     def _collect_element_and_children_ids(self, building_element: models.IModelElement) -> list[int]:
-        """Collect element ID and all its children IDs.
+        """Collect element ID and all its children's IDs.
         
         For OrphanParent nodes, only collect children IDs since the parent doesn't
         correspond to a real CAD element.
         """
         element_ids = []
-        
+
         # OrphanParent doesn't have a real CAD element ID, only collect children
         if building_element.kind != ElementKind.ORPHAN_PARENT:
             element_id = self._cad_adapter.get_element_from_cadwork_guid(building_element.guid)
-            if element_id > 0:  # Filter out invalid IDs
+            if element_id_valid(element_id):  # Filter out invalid IDs
                 element_ids.append(element_id)
 
         try:
-            children = building_element.children
-            if children:
+            if children := building_element.children:
                 for child in children:
                     child_id = self._cad_adapter.get_element_from_cadwork_guid(child.guid)
-                    if child_id > 0:  # Filter out invalid IDs
+                    if element_id_valid(child_id):  # Filter out invalid IDs
                         element_ids.append(child_id)
         except NotImplementedError:
             # Leaf element, no children
@@ -192,18 +190,18 @@ class StoreyAssignmentService:
         """
         buildings_to_nodes: dict[str, list[models.IModelElement]] = {}
         logger.debug(f"Mapping {len(model_element_trees)} model element trees to buildings")
-        
+
         for node in model_element_trees:
             logger.debug(f"Processing node: {node.name}, GUID: {node.guid}, Kind: {node.kind}")
-            
-            # Special handling for OrphanParent - map children individually
+
+            # Special handling for OrphanParent
             if node.kind == ElementKind.ORPHAN_PARENT:
                 logger.debug(f"  -> OrphanParent detected, mapping {len(node.children)} children individually")
                 for child in node.children:
                     child_element_id = self._cad_adapter.get_element_from_cadwork_guid(child.guid)
                     child_building_name = self._cad_adapter.get_building(child_element_id) or "UnassignedBuilding"
                     logger.debug(f"    -> Child {child.name} mapped to building: {child_building_name}")
-                    # Wrap the child in an OrphanParent node for this specific building
+
                     orphan_wrapper = models.OrphanParent(
                         guid=node.guid,
                         name=node.name,
@@ -212,7 +210,7 @@ class StoreyAssignmentService:
                     )
                     buildings_to_nodes.setdefault(child_building_name, []).append(orphan_wrapper)
                 continue
-            
+
             # Normal handling for real CAD elements
             element_id: int = self._cad_adapter.get_element_from_cadwork_guid(node.guid)
             logger.debug(f"  -> element_id from GUID lookup: {element_id}")
@@ -241,8 +239,7 @@ class StoreyAssignmentService:
                           )
         return valid_elements
 
-    def build_model_element_trees(self, element_ids: Iterable[int]) -> list[
-        models.IModelElement]:
+    def build_model_element_tree_nodes(self, element_ids: Iterable[int]) -> list[models.IModelElement]:
         """Build model element trees using the provided adapter.
 
         Args:

@@ -1,9 +1,3 @@
-"""
-Tests element assignment to building storeys with various element types
-(beams, plates, walls) and edge cases (elements on boundaries, spanning
-multiple storeys, etc.).
-"""
-
 import pytest
 from compas.geometry import Point, Vector
 
@@ -22,7 +16,7 @@ class EnhancedMockCadAdapter(MockCadAdapter):
                  width: float,  # x-direction (mm)
                  height: float,  # y-direction (mm)
                  length: float,  # z-direction (mm)
-                 position: tuple[float, float, float],  # Bottom center position
+                 position: tuple[float, float, float],  # Bottom center position (mm)
                  building: str = "TestBuilding"
                  ):
         x, y, z = position
@@ -30,21 +24,21 @@ class EnhancedMockCadAdapter(MockCadAdapter):
                          name=name,
                          guid=guid,
                          p1=(x, y, z),
-                         xl=(width / 1000.0, 0, 0),  # Convert mm to m
-                         yl=(0, height / 1000.0, 0),
-                         zl=(0, 0, length / 1000.0),
+                         xl=(width, 0, 0),  # Keep in mm
+                         yl=(0, height, 0),
+                         zl=(0, 0, length),
                          building=building
                          )
         # Store custom bounding box
         self._elements[element_id]['bbox'] = [
-            Point(x - width / 2000.0, y - height / 2000.0, z),
-            Point(x + width / 2000.0, y - height / 2000.0, z),
-            Point(x + width / 2000.0, y + height / 2000.0, z),
-            Point(x - width / 2000.0, y + height / 2000.0, z),
-            Point(x - width / 2000.0, y - height / 2000.0, z + length / 1000.0),
-            Point(x + width / 2000.0, y - height / 2000.0, z + length / 1000.0),
-            Point(x + width / 2000.0, y + height / 2000.0, z + length / 1000.0),
-            Point(x - width / 2000.0, y + height / 2000.0, z + length / 1000.0),
+            Point(x - width / 2.0, y - height / 2.0, z),
+            Point(x + width / 2.0, y - height / 2.0, z),
+            Point(x + width / 2.0, y + height / 2.0, z),
+            Point(x - width / 2.0, y + height / 2.0, z),
+            Point(x - width / 2.0, y - height / 2.0, z + length),
+            Point(x + width / 2.0, y - height / 2.0, z + length),
+            Point(x + width / 2.0, y + height / 2.0, z + length),
+            Point(x - width / 2.0, y + height / 2.0, z + length),
         ]
 
     def add_plate(self,
@@ -54,7 +48,7 @@ class EnhancedMockCadAdapter(MockCadAdapter):
                   width: float,  # x-direction (mm)
                   length: float,  # y-direction (mm)
                   thickness: float,  # z-direction (mm)
-                  position: tuple[float, float, float],  # Bottom corner position
+                  position: tuple[float, float, float],  # Bottom corner position (mm)
                   building: str = "TestBuilding"
                   ):
         x, y, z = position
@@ -63,20 +57,20 @@ class EnhancedMockCadAdapter(MockCadAdapter):
                          guid=guid,
                          is_floor=True,
                          p1=(x, y, z),
-                         xl=(width / 1000.0, 0, 0),
-                         yl=(0, length / 1000.0, 0),
-                         zl=(0, 0, thickness / 1000.0),
+                         xl=(width, 0, 0),
+                         yl=(0, length, 0),
+                         zl=(0, 0, thickness),
                          building=building
                          )
         self._elements[element_id]['bbox'] = [
             Point(x, y, z),
-            Point(x + width / 1000.0, y, z),
-            Point(x + width / 1000.0, y + length / 1000.0, z),
-            Point(x, y + length / 1000.0, z),
-            Point(x, y, z + thickness / 1000.0),
-            Point(x + width / 1000.0, y, z + thickness / 1000.0),
-            Point(x + width / 1000.0, y + length / 1000.0, z + thickness / 1000.0),
-            Point(x, y + length / 1000.0, z + thickness / 1000.0),
+            Point(x + width, y, z),
+            Point(x + width, y + length, z),
+            Point(x, y + length, z),
+            Point(x, y, z + thickness),
+            Point(x + width, y, z + thickness),
+            Point(x + width, y + length, z + thickness),
+            Point(x, y + length, z + thickness),
         ]
 
     def add_wall(self,
@@ -86,7 +80,7 @@ class EnhancedMockCadAdapter(MockCadAdapter):
                  width: float,  # x-direction (mm)
                  thickness: float,  # y-direction (mm)
                  height: float,  # z-direction (mm)
-                 position: tuple[float, float, float],  # Bottom corner position
+                 position: tuple[float, float, float],  # Bottom corner position (mm)
                  building: str = "TestBuilding"
                  ):
         x, y, z = position
@@ -95,21 +89,21 @@ class EnhancedMockCadAdapter(MockCadAdapter):
                          guid=guid,
                          is_wall=True,
                          p1=(x, y, z),
-                         xl=(width / 1000.0, 0, 0),
-                         yl=(0, thickness / 1000.0, 0),
-                         zl=(0, 0, height / 1000.0),
+                         xl=(width, 0, 0),
+                         yl=(0, thickness, 0),
+                         zl=(0, 0, height),
                          building=building
                          )
 
         self._elements[element_id]['bbox'] = [
             Point(x, y, z),
-            Point(x + width / 1000.0, y, z),
-            Point(x + width / 1000.0, y + thickness / 1000.0, z),
-            Point(x, y + thickness / 1000.0, z),
-            Point(x, y, z + height / 1000.0),
-            Point(x + width / 1000.0, y, z + height / 1000.0),
-            Point(x + width / 1000.0, y + thickness / 1000.0, z + height / 1000.0),
-            Point(x, y + thickness / 1000.0, z + height / 1000.0),
+            Point(x + width, y, z),
+            Point(x + width, y + thickness, z),
+            Point(x, y + thickness, z),
+            Point(x, y, z + height),
+            Point(x + width, y, z + height),
+            Point(x + width, y + thickness, z + height),
+            Point(x, y + thickness, z + height),
         ]
 
     def get_bounding_box_vertices_local(self, element_id: int, reference_ids: list[int]) -> list[Point]:
@@ -117,15 +111,15 @@ class EnhancedMockCadAdapter(MockCadAdapter):
         element = self._elements.get(element_id)
         if element and 'bbox' in element:
             return element['bbox']
-        # Fallback to simple box
+
         return super().get_bounding_box_vertices_local(element_id, reference_ids)
 
 
-def create_test_building_with_four_storeys(storey_height: float = 3.0) -> Building:
+def create_test_building_with_four_storeys(storey_height: float = 3000.0) -> Building:
     """Create a test building with 4 storeys.
     
     Args:
-        storey_height: Height of each storey in meters (default: 3.0 m)
+        storey_height: Height of each storey in millimeters (default: 3000.0 mm = 3.0 m)
         
     Returns:
         Building with storeys 1-4
@@ -139,8 +133,6 @@ def create_test_building_with_four_storeys(storey_height: float = 3.0) -> Buildi
             BuildingStorey(building_name="TestBuilding", storey_name="Storey4", elevation=3 * storey_height),
         ]
     )
-
-
 class TestStoreyAssignmentService:
     """Test suite for StoreyAssignmentService."""
 
@@ -148,11 +140,11 @@ class TestStoreyAssignmentService:
         """Test beam completely within a single storey - standard case."""
         # Arrange
         mock = EnhancedMockCadAdapter()
-        building = create_test_building_with_four_storeys(storey_height=3.0)
+        building = create_test_building_with_four_storeys(storey_height=3000.0)
         registry = BuildingRegistry()
         registry.register(building)
 
-        # Beam at 1.5m elevation (middle of Storey1: 0-3m), 2.5m long vertically
+        # Beam at 500mm elevation (middle of Storey1: 0-3000mm), 2500mm long vertically
         mock.add_beam(
             element_id=1,
             name="Beam-S1-01",
@@ -160,7 +152,7 @@ class TestStoreyAssignmentService:
             width=120,  # mm
             height=200,  # mm
             length=2500,  # mm
-            position=(5.0, 5.0, 0.5),  # Bottom at 0.5m, top at 3.0m
+            position=(5000.0, 5000.0, 500.0),  # Bottom at 500mm, top at 3000mm
             building="TestBuilding"
         )
 
@@ -177,12 +169,12 @@ class TestStoreyAssignmentService:
         """Test beam spanning two storeys - should assign to storey with most coverage."""
         # Arrange
         mock = EnhancedMockCadAdapter()
-        building = create_test_building_with_four_storeys(storey_height=3.0)
+        building = create_test_building_with_four_storeys(storey_height=3000.0)
         registry = BuildingRegistry()
         registry.register(building)
 
-        # Beam from 2.0m to 4.0m (spans Storey1 [0-3m] and Storey2 [3-6m])
-        # 1.0m in Storey1, 1.0m in Storey2 - equal coverage
+        # Beam from 2000mm to 4000mm (spans Storey1 [0-3000mm] and Storey2 [3000-6000mm])
+        # 1000mm in Storey1, 1000mm in Storey2 - equal coverage
         mock.add_beam(
             element_id=2,
             name="Beam-S1-S2",
@@ -190,7 +182,7 @@ class TestStoreyAssignmentService:
             width=120,
             height=200,
             length=2000,
-            position=(5.0, 5.0, 2.0),  # Bottom at 2m, top at 4m
+            position=(5000.0, 5000.0, 2000.0),  # Bottom at 2000mm, top at 4000mm
             building="TestBuilding"
         )
 
@@ -208,7 +200,7 @@ class TestStoreyAssignmentService:
         """Test beam with 70% in upper storey, 30% in lower."""
         # Arrange
         mock = EnhancedMockCadAdapter()
-        building = create_test_building_with_four_storeys(storey_height=3.0)
+        building = create_test_building_with_four_storeys(storey_height=3000.0)
         registry = BuildingRegistry()
         registry.register(building)
 
@@ -221,7 +213,7 @@ class TestStoreyAssignmentService:
             width=120,
             height=200,
             length=3000,
-            position=(5.0, 5.0, 2.5),
+            position=(5000.0, 5000.0, 2500.0),
             building="TestBuilding"
         )
 
@@ -238,7 +230,7 @@ class TestStoreyAssignmentService:
         """Test plate (slab) positioned exactly at storey elevation."""
         # Arrange
         mock = EnhancedMockCadAdapter()
-        building = create_test_building_with_four_storeys(storey_height=3.0)
+        building = create_test_building_with_four_storeys(storey_height=3000.0)
         registry = BuildingRegistry()
         registry.register(building)
 
@@ -251,7 +243,7 @@ class TestStoreyAssignmentService:
             width=6000,
             length=8000,
             thickness=200,
-            position=(0.0, 0.0, 3.0),  # Exactly at storey boundary
+            position=(0.0, 0.0, 3000.0),  # Exactly at storey boundary
             building="TestBuilding"
         )
 
@@ -269,7 +261,7 @@ class TestStoreyAssignmentService:
         """Test wall with standard storey height (3m)."""
         # Arrange
         mock = EnhancedMockCadAdapter()
-        building = create_test_building_with_four_storeys(storey_height=3.0)
+        building = create_test_building_with_four_storeys(storey_height=3000.0)
         registry = BuildingRegistry()
         registry.register(building)
 
@@ -298,7 +290,7 @@ class TestStoreyAssignmentService:
         """Test wall spanning from Storey1 to Storey3."""
         # Arrange
         mock = EnhancedMockCadAdapter()
-        building = create_test_building_with_four_storeys(storey_height=3.0)
+        building = create_test_building_with_four_storeys(storey_height=3000.0)
         registry = BuildingRegistry()
         registry.register(building)
 
@@ -329,15 +321,15 @@ class TestStoreyAssignmentService:
         """Test batch assignment of multiple elements to different storeys."""
         # Arrange
         mock = EnhancedMockCadAdapter()
-        building = create_test_building_with_four_storeys(storey_height=3.0)
+        building = create_test_building_with_four_storeys(storey_height=3000.0)
         registry = BuildingRegistry()
         registry.register(building)
 
         # Elements in different storeys
-        mock.add_beam(1, "Beam-S1", create_guid(), 120, 200, 2000, (5.0, 5.0, 0.5), "TestBuilding")  # Storey1
-        mock.add_beam(2, "Beam-S2", create_guid(), 120, 200, 2000, (5.0, 5.0, 3.5), "TestBuilding")  # Storey2
-        mock.add_beam(3, "Beam-S3", create_guid(), 120, 200, 2000, (5.0, 5.0, 6.5), "TestBuilding")  # Storey3
-        mock.add_beam(4, "Beam-S4", create_guid(), 120, 200, 2000, (5.0, 5.0, 9.5), "TestBuilding")  # Storey4
+        mock.add_beam(1, "Beam-S1", create_guid(), 120, 200, 2000, (5000.0, 5000.0, 500.0), "TestBuilding")  # Storey1
+        mock.add_beam(2, "Beam-S2", create_guid(), 120, 200, 2000, (5000.0, 5000.0, 3500.0), "TestBuilding")  # Storey2
+        mock.add_beam(3, "Beam-S3", create_guid(), 120, 200, 2000, (5000.0, 5000.0, 6500.0), "TestBuilding")  # Storey3
+        mock.add_beam(4, "Beam-S4", create_guid(), 120, 200, 2000, (5000.0, 5000.0, 9500.0), "TestBuilding")  # Storey4
 
         service = StoreyAssignmentService(registry, mock, coverage_threshold=0.60)
 
@@ -354,11 +346,11 @@ class TestStoreyAssignmentService:
         """Test element positioned below the lowest storey - edge case."""
         # Arrange
         mock = EnhancedMockCadAdapter()
-        building = create_test_building_with_four_storeys(storey_height=3.0)
+        building = create_test_building_with_four_storeys(storey_height=3000.0)
         registry = BuildingRegistry()
         registry.register(building)
 
-        # Beam completely below Storey1 (which starts at 0m)
+        # Beam completely below Storey1 (which starts at 0mm)
         mock.add_beam(
             element_id=30,
             name="Beam-Underground",
@@ -366,7 +358,7 @@ class TestStoreyAssignmentService:
             width=120,
             height=200,
             length=2000,
-            position=(5.0, 5.0, -3.0),  # From -3m to -1m
+            position=(5000.0, 5000.0, -3000.0),  # From -3000mm to -1000mm
             building="TestBuilding"
         )
 
@@ -386,7 +378,7 @@ class TestStoreyAssignmentService:
         """Test element positioned above the topmost storey."""
         # Arrange
         mock = EnhancedMockCadAdapter()
-        building = create_test_building_with_four_storeys(storey_height=3.0)
+        building = create_test_building_with_four_storeys(storey_height=3000.0)
         registry = BuildingRegistry()
         registry.register(building)
 
@@ -398,7 +390,7 @@ class TestStoreyAssignmentService:
             width=120,
             height=200,
             length=2000,
-            position=(5.0, 5.0, 13.0),
+            position=(5000.0, 5000.0, 13000.0),
             building="TestBuilding"
         )
 
@@ -416,7 +408,7 @@ class TestStoreyAssignmentService:
         """Test with 0% threshold - any overlap should assign."""
         # Arrange
         mock = EnhancedMockCadAdapter()
-        building = create_test_building_with_four_storeys(storey_height=3.0)
+        building = create_test_building_with_four_storeys(storey_height=3000.0)
         registry = BuildingRegistry()
         registry.register(building)
 
@@ -428,7 +420,7 @@ class TestStoreyAssignmentService:
             width=120,
             height=200,
             length=3000,
-            position=(5.0, 5.0, 2.999),  # From 2.999m to 5.999m
+            position=(5000.0, 5000.0, 2999.0),  # From 2.999m to 5.999m
             building="TestBuilding"
         )
 
@@ -445,7 +437,7 @@ class TestStoreyAssignmentService:
         """Test with 100% threshold - requires complete coverage."""
         # Arrange
         mock = EnhancedMockCadAdapter()
-        building = create_test_building_with_four_storeys(storey_height=3.0)
+        building = create_test_building_with_four_storeys(storey_height=3000.0)
         registry = BuildingRegistry()
         registry.register(building)
 
@@ -457,7 +449,7 @@ class TestStoreyAssignmentService:
             width=120,
             height=200,
             length=2000,
-            position=(5.0, 5.0, 2.0),  # From 2m to 4m
+            position=(5000.0, 5000.0, 2000.0),  # From 2m to 4m
             building="TestBuilding"
         )
 
@@ -469,7 +461,7 @@ class TestStoreyAssignmentService:
             width=120,
             height=200,
             length=2000,
-            position=(5.0, 5.0, 0.5),  # From 0.5m to 2.5m (fully in Storey1: 0-3m)
+            position=(5000.0, 5000.0, 500.0),  # From 0.5m to 2.5m (fully in Storey1: 0-3m)
             building="TestBuilding"
         )
 
@@ -488,7 +480,7 @@ class TestStoreyAssignmentService:
         """Test very thin plate (20mm) at storey boundary."""
         # Arrange
         mock = EnhancedMockCadAdapter()
-        building = create_test_building_with_four_storeys(storey_height=3.0)
+        building = create_test_building_with_four_storeys(storey_height=3000.0)
         registry = BuildingRegistry()
         registry.register(building)
 
@@ -500,7 +492,7 @@ class TestStoreyAssignmentService:
             width=6000,
             length=8000,
             thickness=20,  # Only 20mm thick
-            position=(0.0, 0.0, 6.0),
+            position=(0.0, 0.0, 6000.0),
             building="TestBuilding"
         )
 
@@ -517,7 +509,7 @@ class TestStoreyAssignmentService:
         """Test edge case: element with zero height (degenerate geometry)."""
         # Arrange
         mock = EnhancedMockCadAdapter()
-        building = create_test_building_with_four_storeys(storey_height=3.0)
+        building = create_test_building_with_four_storeys(storey_height=3000.0)
         registry = BuildingRegistry()
         registry.register(building)
 
@@ -529,7 +521,7 @@ class TestStoreyAssignmentService:
             width=1000,
             length=1000,
             thickness=0,  # Zero thickness
-            position=(0.0, 0.0, 1.5),
+            position=(0.0, 0.0, 1500.0),
             building="TestBuilding"
         )
 
@@ -541,6 +533,7 @@ class TestStoreyAssignmentService:
         # Assert
         # Zero-height element at 1.5m should still be processed
         assigned_storey = mock._elements[60]['storey']
+        assert assigned_storey == "Storey1", f"Expected Storey2, got {assigned_storey}"
         # Might not assign due to zero height, or might assign based on position
         # This tests implementation robustness
 
@@ -578,7 +571,7 @@ class TestStoreyAssignmentService:
         """Test vertical column spanning all four storeys."""
         # Arrange
         mock = EnhancedMockCadAdapter()
-        building = create_test_building_with_four_storeys(storey_height=3.0)
+        building = create_test_building_with_four_storeys(storey_height=3000.0)
         registry = BuildingRegistry()
         registry.register(building)
 
@@ -591,7 +584,7 @@ class TestStoreyAssignmentService:
             width=300,  # Square column
             height=300,
             length=12000,  # 12m tall
-            position=(2.0, 2.0, 0.0),
+            position=(2000.0, 2000.0, 0.0),
             building="TestBuilding"
         )
 
@@ -614,7 +607,7 @@ class TestStoreyAssignmentService:
             name="Building-A",
             storeys=[
                 BuildingStorey(building_name="Building-A", storey_name="Ground", elevation=0.0),
-                BuildingStorey(building_name="Building-A", storey_name="First", elevation=3.0),
+                BuildingStorey(building_name="Building-A", storey_name="First", elevation=3000.0),
             ]
         )
 
@@ -622,7 +615,7 @@ class TestStoreyAssignmentService:
             name="Building-B",
             storeys=[
                 BuildingStorey(building_name="Building-B", storey_name="Level1", elevation=0.0),
-                BuildingStorey(building_name="Building-B", storey_name="Level2", elevation=3.5),
+                BuildingStorey(building_name="Building-B", storey_name="Level2", elevation=3500.0),
             ]
         )
 
@@ -631,8 +624,8 @@ class TestStoreyAssignmentService:
         registry.register(building2)
 
         # Add elements to different buildings
-        mock.add_beam(80, "Beam-A1", create_guid(), 120, 200, 2000, (0.0, 0.0, 0.5), "Building-A")
-        mock.add_beam(81, "Beam-B1", create_guid(), 120, 200, 2000, (10.0, 10.0, 0.5), "Building-B")
+        mock.add_beam(80, "Beam-A1", create_guid(), 120, 200, 2000, (0.0, 0.0, 500.0), "Building-A")
+        mock.add_beam(81, "Beam-B1", create_guid(), 120, 200, 2000, (10000.0, 10000.0, 500.0), "Building-B")
 
         service = StoreyAssignmentService(registry, mock, coverage_threshold=0.60)
 
