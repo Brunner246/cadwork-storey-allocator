@@ -72,7 +72,7 @@ class ModelElementTreeBuilder:
         orphans = self._collect_orphans(grouping_to_children, set(self._grouping_by(p) or "" for p in parents))
         if orphans:
             container = models.OrphanParent(
-                guid=models.Guid(self._adapter.get_element_cadwork_guid(list(orphans)[0])), # models.create_guid() # stable but arbitrary
+                guid=models.create_guid(),  # Create a synthetic GUID for the orphan container
                 name="Orphans",
                 geometry=self._empty_geometry(),
                 children=[self._create_leaf_element(i) for i in orphans],

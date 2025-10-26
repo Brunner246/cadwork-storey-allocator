@@ -51,7 +51,7 @@ class VerticalCoverageAssignmentVisitor(IElementAssignmentVisitor):
                 best_storey = boundary.storey
                 best_coverage = coverage
 
-        if best_coverage >= self._coverage_threshold:
+        if best_coverage >= self._coverage_threshold and best_storey is not None:
             return models.StoreyCoverage(building_name=best_storey.building_name,
                                          storey_name=best_storey.storey_name,
                                          coverage=best_coverage)  # best_storey, best_coverage

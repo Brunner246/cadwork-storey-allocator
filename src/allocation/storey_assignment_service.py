@@ -145,16 +145,26 @@ class StoreyAssignmentService:
         to_assign.setdefault(storey_coverage.storey_name, []).extend(element_ids)
 
     def _collect_element_and_children_ids(self, building_element: models.IModelElement) -> list[int]:
-        """Collect element ID and all its children IDs."""
-        element_ids = [self._cad_adapter.get_element_from_cadwork_guid(building_element.guid)]
+        """Collect element ID and all its children IDs.
+        
+        For OrphanParent nodes, only collect children IDs since the parent doesn't
+        correspond to a real CAD element.
+        """
+        element_ids = []
+        
+        # OrphanParent doesn't have a real CAD element ID, only collect children
+        if building_element.kind != ElementKind.ORPHAN_PARENT:
+            element_id = self._cad_adapter.get_element_from_cadwork_guid(building_element.guid)
+            if element_id > 0:  # Filter out invalid IDs
+                element_ids.append(element_id)
 
         try:
             children = building_element.children
             if children:
-                element_ids.extend(
-                    self._cad_adapter.get_element_from_cadwork_guid(child.guid)
-                    for child in children
-                )
+                for child in children:
+                    child_id = self._cad_adapter.get_element_from_cadwork_guid(child.guid)
+                    if child_id > 0:  # Filter out invalid IDs
+                        element_ids.append(child_id)
         except NotImplementedError:
             # Leaf element, no children
             pass
@@ -175,11 +185,35 @@ class StoreyAssignmentService:
 
     def map_model_element_trees_to_buildings(self, model_element_trees: list[models.IModelElement]) -> dict[
         str, list[models.IModelElement]]:
-        """Map each model element tree to its corresponding building name."""
+        """Map each model element tree to its corresponding building name.
+        
+        For OrphanParent nodes (which don't have real CAD elements), we map each child
+        individually to its building instead of the parent.
+        """
         buildings_to_nodes: dict[str, list[models.IModelElement]] = {}
         logger.debug(f"Mapping {len(model_element_trees)} model element trees to buildings")
+        
         for node in model_element_trees:
-            logger.debug(f"Processing node: {node.name}, GUID: {node.guid}")
+            logger.debug(f"Processing node: {node.name}, GUID: {node.guid}, Kind: {node.kind}")
+            
+            # Special handling for OrphanParent - map children individually
+            if node.kind == ElementKind.ORPHAN_PARENT:
+                logger.debug(f"  -> OrphanParent detected, mapping {len(node.children)} children individually")
+                for child in node.children:
+                    child_element_id = self._cad_adapter.get_element_from_cadwork_guid(child.guid)
+                    child_building_name = self._cad_adapter.get_building(child_element_id) or "UnassignedBuilding"
+                    logger.debug(f"    -> Child {child.name} mapped to building: {child_building_name}")
+                    # Wrap the child in an OrphanParent node for this specific building
+                    orphan_wrapper = models.OrphanParent(
+                        guid=node.guid,
+                        name=node.name,
+                        geometry=node.geometry,
+                        children=[child]
+                    )
+                    buildings_to_nodes.setdefault(child_building_name, []).append(orphan_wrapper)
+                continue
+            
+            # Normal handling for real CAD elements
             element_id: int = self._cad_adapter.get_element_from_cadwork_guid(node.guid)
             logger.debug(f"  -> element_id from GUID lookup: {element_id}")
             building_name: str = self._cad_adapter.get_building(element_id) or "UnassignedBuilding"
